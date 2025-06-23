@@ -1,0 +1,1 @@
+"""Sailor MCP Server - Model Context Protocol for Mermaid diagram generation"""

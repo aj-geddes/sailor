@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sailor Site - Get a picture of your Mermaid</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.2/codemirror.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.2/theme/monokai.min.css">
+    <link rel="stylesheet" href="/static/styles.css">
+    <script src="https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.2/codemirror.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.2/mode/markdown/markdown.min.js"></script>
+</head>
+<body>
+    <div class="app">
+        <header class="header">
+            <div class="header-content">
+                <h1>Sailor Site</h1>
+                <p class="slogan">Get a picture of your Mermaid</p>
+            </div>
+            <div class="auth-controls">
+                <select id="provider" class="provider-select">
+                    <option value="openai">OpenAI</option>
+                    <option value="anthropic">Anthropic</option>
+                </select>
+                
+                <input type="password" id="apiKey" placeholder="API Key" class="api-key-input">
+                <span id="keyStatus" class="key-status"></span>
+            </div>
+        </header>
+
+        <div class="main-content">
+            <div class="editor-panel">
+                <div class="panel-header">
+                    <span>Mermaid Code</span>
+                    <button id="copyCodeBtn" class="copy-btn" title="Copy Code">
+                        <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+                            <path d="M4 2a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V2zm2 0v8h8V2H6zM2 6a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2v-2h-2v2H2V8h2V6H2z"/>
+                        </svg>
+                        <span class="copy-text">Copy</span>
+                    </button>
+                </div>
+                <textarea id="mermaidCode">graph TD
+    A[Start] --> B{Is it?}
+    B -->|Yes| C[OK]
+    B -->|No| D[End]</textarea>
+            </div>
+
+            <div class="preview-panel">
+                <div class="panel-header">
+                    <span>Preview</span>
+                    <button id="copyImageBtn" class="copy-btn" title="Copy as Image">
+                        <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+                            <path d="M4.502 9a1.5 1.5 0 1 0 0-3 1.5 1.5 0 0 0 0 3z"/>
+                            <path d="M14.002 13a2 2 0 0 1-2 2h-10a2 2 0 0 1-2-2V5A2 2 0 0 1 2 3a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v8a2 2 0 0 1-1.998 2zM14 2H4a1 1 0 0 0-1 1h9.002a2 2 0 0 1 2 2v7A1 1 0 0 0 15 11V3a1 1 0 0 0-1-1zM2.002 4a1 1 0 0 0-1 1v8l2.646-2.354a.5.5 0 0 1 .63-.022l2.66 1.773 3.71-3.71a.5.5 0 0 1 .577-.094l1.777 1.947V5a1 1 0 0 0-1-1h-10z"/>
+                        </svg>
+                        <span class="copy-text">Copy Image</span>
+                    </button>
+                </div>
+                <div id="mermaidPreview" class="mermaid-container"></div>
+            </div>
+
+            <div class="controls-panel">
+                <h3>Style Controls</h3>
+                
+                <div class="control-group">
+                    <label>Theme</label>
+                    <select id="theme" class="control-select">
+                        <option value="default">Default</option>
+                        <option value="dark">Dark</option>
+                        <option value="forest">Forest</option>
+                        <option value="neutral">Neutral</option>
+                    </select>
+                </div>
+
+                <div class="control-group">
+                    <label>Direction</label>
+                    <select id="direction" class="control-select">
+                        <option value="TB">Top to Bottom</option>
+                        <option value="BT">Bottom to Top</option>
+                        <option value="LR">Left to Right</option>
+                        <option value="RL">Right to Left</option>
+                    </select>
+                </div>
+
+                <div class="control-group">
+                    <label>Look</label>
+                    <select id="look" class="control-select">
+                        <option value="classic">Classic</option>
+                        <option value="handDrawn">Hand-Drawn</option>
+                    </select>
+                    <small id="lookDescription">Traditional Mermaid style</small>
+                </div>
+
+                <div class="control-group">
+                    <label>Export Background</label>
+                    <select id="exportBg" class="control-select">
+                        <option value="transparent">Transparent</option>
+                        <option value="white">White</option>
+                    </select>
+                    <small>Background for copied/downloaded images</small>
+                </div>
+
+                <div class="examples-section">
+                    <h4>Example Diagrams</h4>
+                    <button class="example-btn" onclick="loadExample('flowchart')">Flowchart</button>
+                    <button class="example-btn" onclick="loadExample('sequence')">Sequence</button>
+                    <button class="example-btn" onclick="loadExample('gantt')">Gantt Chart</button>
+                </div>
+            </div>
+        </div>
+
+        <div class="input-panel">
+            <div class="panel-header">Generate Diagram</div>
+            <div class="input-controls">
+                <textarea id="userInput" placeholder="Describe the diagram you want to create... (e.g., 'Create a flowchart showing user login process')" rows="3"></textarea>
+                <button id="generateBtn" class="generate-button">Generate Diagram</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="toast" class="toast"></div>
+
+    <script src="/static/app.js"></script>
+</body>
+</html>

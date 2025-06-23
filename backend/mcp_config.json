@@ -1,0 +1,42 @@
+{
+  "name": "sailor-mermaid",
+  "version": "1.0.0",
+  "description": "MCP server for Sailor Site - AI-powered Mermaid diagram generator with validation and style controls",
+  "executable": {
+    "command": "python",
+    "args": ["mcp_server.py"]
+  },
+  "features": {
+    "tools": [
+      "request_mermaid_generation",
+      "validate_and_render_mermaid",
+      "render_mermaid_code",
+      "get_mermaid_examples"
+    ],
+    "prompts": [
+      "flowchart_wizard",
+      "sequence_diagram_wizard", 
+      "architecture_diagram",
+      "data_visualization",
+      "project_timeline"
+    ]
+  },
+  "capabilities": {
+    "diagram_types": [
+      "flowchart",
+      "sequence",
+      "gantt",
+      "class",
+      "state",
+      "er",
+      "pie",
+      "mindmap",
+      "journey",
+      "timeline"
+    ],
+    "themes": ["default", "dark", "forest", "neutral"],
+    "looks": ["classic", "handDrawn"],
+    "export_formats": ["png", "svg"],
+    "backgrounds": ["transparent", "white"]
+  }
+}

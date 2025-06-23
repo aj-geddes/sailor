@@ -1,0 +1,330 @@
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    background-color: #1e1e1e;
+    color: #cccccc;
+    height: 100vh;
+    overflow: hidden;
+}
+
+.app {
+    display: flex;
+    flex-direction: column;
+    height: 100vh;
+}
+
+/* Header */
+.header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 1rem 2rem;
+    background-color: #2d2d30;
+    border-bottom: 1px solid #3e3e42;
+}
+
+.header-content {
+    display: flex;
+    align-items: baseline;
+    gap: 1.5rem;
+}
+
+.header h1 {
+    font-size: 1.5rem;
+    font-weight: 600;
+    margin: 0;
+}
+
+.slogan {
+    font-size: 1rem;
+    color: #999;
+    font-style: italic;
+    margin: 0;
+    font-weight: 300;
+}
+
+.auth-controls {
+    display: flex;
+    gap: 1rem;
+    align-items: center;
+}
+
+.provider-select, .control-select {
+    padding: 0.5rem 1rem;
+    background-color: #3e3e42;
+    color: #cccccc;
+    border: 1px solid #555;
+    border-radius: 4px;
+    cursor: pointer;
+}
+
+.api-key-input {
+    padding: 0.5rem 1rem;
+    background-color: #3e3e42;
+    color: #cccccc;
+    border: 1px solid #555;
+    border-radius: 4px;
+    width: 250px;
+}
+
+.key-status {
+    font-size: 1.2rem;
+}
+
+.key-status.valid {
+    color: #4caf50;
+}
+
+.key-status.invalid {
+    color: #f44336;
+}
+
+/* Main Content */
+.main-content {
+    display: flex;
+    flex: 1;
+    overflow: hidden;
+}
+
+.editor-panel, .preview-panel {
+    flex: 2;
+    display: flex;
+    flex-direction: column;
+    border-right: 1px solid #3e3e42;
+}
+
+.controls-panel {
+    flex: 1;
+    padding: 1rem;
+    overflow-y: auto;
+    background-color: #252526;
+}
+
+.panel-header {
+    padding: 0.75rem 1rem;
+    background-color: #2d2d30;
+    border-bottom: 1px solid #3e3e42;
+    font-weight: 500;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+/* Copy buttons */
+.copy-btn {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.25rem 0.75rem;
+    background-color: #3e3e42;
+    color: #cccccc;
+    border: 1px solid #555;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 0.875rem;
+    transition: all 0.2s;
+}
+
+.copy-btn:hover {
+    background-color: #4e4e52;
+    border-color: #666;
+}
+
+.copy-btn:active {
+    transform: scale(0.95);
+}
+
+.copy-btn.copied {
+    background-color: #28a745;
+    border-color: #28a745;
+}
+
+.copy-btn.copied .copy-text {
+    content: 'Copied!';
+}
+
+.copy-btn svg {
+    width: 16px;
+    height: 16px;
+}
+
+/* Editor */
+#mermaidCode {
+    flex: 1;
+    background-color: #1e1e1e;
+    color: #d4d4d4;
+    border: none;
+    padding: 1rem;
+    font-family: 'Monaco', 'Consolas', monospace;
+    font-size: 14px;
+    resize: none;
+    outline: none;
+}
+
+/* Preview */
+.mermaid-container {
+    flex: 1;
+    padding: 2rem;
+    overflow: auto;
+    background-color: #252526;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+
+.mermaid-container svg {
+    max-width: 100%;
+    height: auto;
+}
+
+/* Controls */
+.controls-panel h3 {
+    margin: 0 0 1rem 0;
+    font-size: 1rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+
+.control-group {
+    margin-bottom: 1.5rem;
+}
+
+.control-group label {
+    display: block;
+    margin-bottom: 0.5rem;
+    color: #999;
+    font-size: 0.875rem;
+}
+
+.control-group select {
+    width: 100%;
+}
+
+.control-group small {
+    display: block;
+    margin-top: 0.25rem;
+    color: #666;
+    font-size: 0.75rem;
+}
+
+.examples-section {
+    margin-top: 2rem;
+    padding: 1rem;
+    background-color: #2d2d30;
+    border-radius: 4px;
+}
+
+.examples-section h4 {
+    margin: 0 0 0.75rem 0;
+    font-size: 0.875rem;
+    color: #999;
+}
+
+.example-btn {
+    display: block;
+    width: 100%;
+    padding: 0.5rem;
+    margin-bottom: 0.5rem;
+    background-color: #3e3e42;
+    color: #cccccc;
+    border: 1px solid #555;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: background-color 0.2s;
+}
+
+.example-btn:hover {
+    background-color: #4e4e52;
+}
+
+.example-btn:last-child {
+    margin-bottom: 0;
+}
+
+/* Input Panel */
+.input-panel {
+    background-color: #2d2d30;
+    border-top: 1px solid #3e3e42;
+}
+
+.input-controls {
+    display: flex;
+    gap: 1rem;
+    padding: 1rem;
+}
+
+#userInput {
+    flex: 1;
+    padding: 0.75rem;
+    background-color: #3e3e42;
+    color: #cccccc;
+    border: 1px solid #555;
+    border-radius: 4px;
+    font-family: inherit;
+    resize: none;
+}
+
+.generate-button {
+    padding: 0.75rem 2rem;
+    background-color: #28a745;
+    color: white;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    font-weight: 500;
+    transition: background-color 0.2s;
+}
+
+.generate-button:hover:not(:disabled) {
+    background-color: #218838;
+}
+
+.generate-button:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
+/* Toast */
+.toast {
+    position: fixed;
+    bottom: 2rem;
+    right: 2rem;
+    padding: 1rem 1.5rem;
+    background-color: #323232;
+    color: white;
+    border-radius: 4px;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
+    opacity: 0;
+    transform: translateY(1rem);
+    transition: opacity 0.3s, transform 0.3s;
+    max-width: 400px;
+}
+
+.toast.show {
+    opacity: 1;
+    transform: translateY(0);
+}
+
+.toast.success {
+    background-color: #28a745;
+}
+
+.toast.error {
+    background-color: #dc3545;
+}
+
+.toast.info {
+    background-color: #17a2b8;
+}
+
+/* CodeMirror Override */
+.CodeMirror {
+    height: 100%;
+    font-family: 'Monaco', 'Consolas', monospace;
+    font-size: 14px;
+}
