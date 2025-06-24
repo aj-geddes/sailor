@@ -52,6 +52,9 @@ docker-compose up -d
 
 4. **Access**: Open http://localhost:5000
 
+![image](https://github.com/user-attachments/assets/15ea7954-4cfa-46f5-9a02-b72b80fcc9ca)
+
+
 ### Option B: Claude Desktop Integration 🤖
 
 **Prerequisites**: Docker Desktop + Claude Desktop
