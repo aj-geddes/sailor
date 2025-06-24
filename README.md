@@ -1,15 +1,24 @@
-# 🧜‍♀️ Sailor - Mermaid Diagram MCP Server
+# 🧜‍♀️ Sailor - Mermaid Diagram Generator
 
 [![Docker](https://img.shields.io/badge/docker-%230db7ed.svg?style=for-the-badge&logo=docker&logoColor=white)](https://www.docker.com/)
 [![Python](https://img.shields.io/badge/python-3670A0?style=for-the-badge&logo=python&logoColor=ffdd54)](https://www.python.org/)
 [![Claude Desktop](https://img.shields.io/badge/Claude%20Desktop-Compatible-orange?style=for-the-badge)](https://claude.ai)
+[![Flask](https://img.shields.io/badge/flask-%23000.svg?style=for-the-badge&logo=flask&logoColor=white)](https://flask.palletsprojects.com/)
 
 Get a picture of your Mermaid! 🎨
 
-Sailor is an MCP (Model Context Protocol) server that enables LLMs to generate and render Mermaid diagrams as images. It integrates seamlessly with Claude Desktop, allowing you to create flowcharts, sequence diagrams, and more through natural language.
+Sailor combines a beautiful web interface with an MCP (Model Context Protocol) server for generating and rendering Mermaid diagrams. Use the web UI for interactive diagram creation, or integrate with Claude Desktop for AI-powered diagram generation through natural language.
 
 ## ✨ Features
 
+### 🌐 Web Interface
+- 🎨 **AI-Powered Generation**: Generate diagrams using OpenAI or Anthropic APIs
+- 🔄 **Live Preview**: Real-time rendering with syntax highlighting
+- 📋 **Copy Functions**: Copy both code and rendered images
+- 🎯 **Style Controls**: Theme and appearance customization
+- ✅ **API Key Validation**: Instant feedback on key validity
+
+### 🤖 MCP Server
 - 📐 **All Mermaid Diagram Types**: Flowcharts, sequence, gantt, class, state, ER, pie, mindmap, journey, timeline
 - 🎨 **Multiple Themes**: Default, dark, forest, neutral
 - ✏️ **Hand-drawn Look**: Optional sketch-style rendering
@@ -19,22 +28,42 @@ Sailor is an MCP (Model Context Protocol) server that enables LLMs to generate a
 
 ## 🚀 Quick Start
 
-### Prerequisites
-- Docker Desktop installed and running
-- Claude Desktop application
+Choose your preferred way to use Sailor:
 
-### 1. Clone the Repository
+### Option A: Web Interface 🌐
+
+1. **Clone and Setup**:
 ```bash
 git clone https://github.com/aj-geddes/sailor.git
 cd sailor
 ```
 
-### 2. Build the Docker Image
+2. **Configure Environment** (backend folder):
 ```bash
+cd backend
+cp .env.example .env
+# Edit .env with your API keys
+```
+
+3. **Run with Docker**:
+```bash
+docker-compose up -d
+```
+
+4. **Access**: Open http://localhost:5000
+
+### Option B: Claude Desktop Integration 🤖
+
+**Prerequisites**: Docker Desktop + Claude Desktop
+
+1. **Clone and Build**:
+```bash
+git clone https://github.com/aj-geddes/sailor.git
+cd sailor
 docker build -f Dockerfile.mcp-stdio -t sailor-mcp .
 ```
 
-### 3. Configure Claude Desktop
+2. **Configure Claude Desktop**:
 
 Add the following to your Claude Desktop configuration file:
 
@@ -68,6 +97,16 @@ Completely close and reopen Claude Desktop to load the new configuration.
 
 ## 📖 Usage
 
+### 🌐 Web Interface
+
+1. **Enter API Key**: Provide your OpenAI or Anthropic API key
+2. **Describe Your Diagram**: Enter a natural language description
+3. **Generate**: Click "Generate Diagram" to create Mermaid code
+4. **Customize**: Use style controls to adjust appearance
+5. **Export**: Copy the code or image with the copy buttons
+
+### 🤖 Claude Desktop Integration
+
 Once configured, you can use natural language commands in Claude Desktop:
 
 - "Use sailor-mermaid to create a flowchart showing a login process"
@@ -99,23 +138,43 @@ Get examples of different Mermaid diagram types.
 
 ```
 sailor/
-├── Dockerfile.mcp-stdio      # Docker configuration
-├── setup.py                  # Python package setup
-├── requirements.txt          # Python dependencies
+├── backend/                  # Web UI Flask application
+│   ├── app.py               # Main Flask server
+│   ├── static/              # Frontend files (HTML/CSS/JS)
+│   ├── requirements.txt     # Web UI dependencies
+│   └── .env.example         # Environment template
 ├── src/
-│   └── sailor_mcp/
-│       ├── __init__.py
-│       ├── server.py         # Main MCP server
-│       ├── stdio_wrapper.py  # Claude Desktop communication
-│       ├── renderer.py       # Mermaid rendering engine
-│       ├── validators.py     # Syntax validation
-│       └── prompts.py        # AI prompt templates
-└── tests/                    # Test suite
+│   └── sailor_mcp/          # MCP server implementation
+│       ├── server.py        # Main MCP server
+│       ├── stdio_wrapper.py # Claude Desktop communication
+│       ├── renderer.py      # Mermaid rendering engine
+│       ├── validators.py    # Syntax validation
+│       └── prompts.py       # AI prompt templates
+├── tests/                   # Comprehensive test suite
+├── Dockerfile.mcp-stdio     # MCP server container
+├── docker-compose.yml       # Multi-service setup
+├── setup.py                 # Python package setup
+└── requirements.txt         # MCP dependencies
 ```
 
 ## 🧪 Development
 
-### Local Development Setup
+### Web UI Development
+```bash
+# Setup environment
+cd backend
+cp .env.example .env
+# Edit .env with your API keys
+
+# Install dependencies
+pip install -r requirements.txt
+
+# Run Flask development server
+python app.py
+# Access at http://localhost:5000
+```
+
+### MCP Server Development
 ```bash
 # Create virtual environment
 python -m venv venv
@@ -129,11 +188,18 @@ playwright install chromium
 
 # Run tests
 pytest
+
+# Run MCP server directly
+python -m sailor_mcp.stdio_wrapper
 ```
 
-### Running Without Docker
+### Full Stack Development
 ```bash
-python -m sailor_mcp.stdio_wrapper
+# Run everything with Docker Compose
+docker-compose up --build
+
+# Web UI: http://localhost:5000
+# MCP Server: Available for Claude Desktop integration
 ```
 
 ## 🐛 Troubleshooting
