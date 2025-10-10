@@ -1,4 +1,4 @@
-"""Setup configuration for Sailor MCP"""
+"""Setup configuration for Sailor MCP - FastMCP version"""
 from setuptools import setup, find_packages
 import os
 
@@ -6,24 +6,25 @@ import os
 with open("README.md", "r", encoding="utf-8") as fh:
     long_description = fh.read()
 
-# Read requirements
-def read_requirements(filename):
-    """Read requirements from file"""
-    with open(filename, "r") as f:
-        return [line.strip() for line in f if line.strip() and not line.startswith("#")]
-
-# Base requirements
+# Base requirements - Updated for FastMCP
 install_requires = [
-    "playwright>=1.40.0",
+    # MCP Framework (replaced mcp-python with fastmcp)
     "fastmcp>=0.5.0",
+
+    # Rendering dependencies (unchanged)
+    "playwright>=1.40.0",
+
+    # Async support
     "asyncio",
+
+    # Optional HTTP transport support
     "fastapi>=0.104.0",
     "uvicorn[standard]>=0.24.0",
     "httpx>=0.25.0",
     "sse-starlette>=2.0.0",
 ]
 
-# Development requirements
+# Development requirements (unchanged)
 dev_requires = [
     "pytest>=7.0.0",
     "pytest-asyncio>=0.21.0",
@@ -37,10 +38,10 @@ dev_requires = [
 
 setup(
     name="sailor-mcp",
-    version="2.0.0",
+    version="2.0.0",  # Bump major version for FastMCP migration
     author="Sailor Site Team",
     author_email="team@sailor-site.com",
-    description="MCP server for generating and rendering Mermaid diagrams with AI assistance",
+    description="FastMCP-based server for generating and rendering Mermaid diagrams with AI assistance",
     long_description=long_description,
     long_description_content_type="text/markdown",
     url="https://github.com/yourusername/sailor-site",
@@ -49,7 +50,7 @@ setup(
         "Documentation": "https://github.com/yourusername/sailor-site/wiki",
     },
     classifiers=[
-        "Development Status :: 4 - Beta",
+        "Development Status :: 5 - Production/Stable",  # Updated from Beta
         "Intended Audience :: Developers",
         "Topic :: Software Development :: Libraries :: Python Modules",
         "License :: OSI Approved :: MIT License",
@@ -72,12 +73,17 @@ setup(
             "pytest-mock>=3.10.0",
             "pytest-cov>=4.0.0",
         ],
+        "http": [
+            # Additional deps for HTTP transport
+            "fastapi>=0.104.0",
+            "uvicorn[standard]>=0.24.0",
+        ]
     },
     entry_points={
         "console_scripts": [
-            "sailor-mcp=sailor_mcp.server:main_stdio",
-            "sailor-mcp-http=sailor_mcp.server:main_http",
-            "sailor-mcp-stdio=sailor_mcp.server:main_stdio",
+            # Simplified entry points with FastMCP
+            "sailor-mcp=sailor_mcp.__main__:main",
+            "sailor-mcp-http=sailor_mcp.server_fastmcp:run_http",  # HTTP server variant
         ],
     },
     include_package_data=True,

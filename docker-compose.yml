@@ -1,29 +1,68 @@
+version: '3.8'
+
 services:
   backend:
-    build: ./backend
+    build:
+      context: ./backend
+      cache_from:
+        - python:3.11-slim
     ports:
       - "5000:5000"
     environment:
-      - FLASK_ENV=development
+      - FLASK_ENV=${FLASK_ENV:-production}
       - FLASK_APP=app.py
       - SECRET_KEY=${SECRET_KEY:-dev-secret-key}
       - OPENAI_API_KEY=${OPENAI_API_KEY:-}
       - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
+      - MCP_SERVER_URL=http://mcp:8000
     volumes:
-      - ./backend:/app
+      - ./backend:/app:ro  # Read-only for security in production
     command: python app.py
+    depends_on:
+      mcp:
+        condition: service_healthy
+    networks:
+      - sailor-net
+    restart: unless-stopped
 
   mcp:
     build:
       context: .
       dockerfile: Dockerfile.mcp-http
+      cache_from:
+        - python:3.11-slim
     ports:
-      - "8080:8080"
+      - "8000:8000"
     environment:
       - SAILOR_LOG_LEVEL=${SAILOR_LOG_LEVEL:-INFO}
+      - PYTHONUNBUFFERED=1
+    volumes:
+      - ./output:/home/sailor/output  # For rendered diagrams
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "wget", "-q", "--spider", "http://localhost:8080/health"]
+      test: ["CMD", "python", "-c", "import socket; s=socket.socket(); s.connect(('localhost', 8000)); s.close()"]
       interval: 30s
-      timeout: 10s
+      timeout: 5s
       retries: 3
+      start_period: 15s
+    networks:
+      - sailor-net
+    deploy:
+      resources:
+        limits:
+          cpus: '2'
+          memory: 2G
+        reservations:
+          cpus: '0.5'
+          memory: 512M
+
+networks:
+  sailor-net:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.20.0.0/16
+
+volumes:
+  output:
+    driver: local

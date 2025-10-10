@@ -1,6 +1,6 @@
 # Core dependencies
 playwright>=1.40.0
-mcp-python>=0.1.0
+fastmcp>=0.5.0
 
 # Web framework (for backend)
 flask>=2.3.0

@@ -1,50 +1,62 @@
-FROM python:3.11-slim
-
-# Install system dependencies
-RUN apt-get update && apt-get install -y \
-    wget \
-    gnupg \
-    && rm -rf /var/lib/apt/lists/*
-
-# Install Playwright dependencies
-RUN apt-get update && apt-get install -y \
-    libnss3 \
-    libnspr4 \
-    libatk1.0-0 \
-    libatk-bridge2.0-0 \
-    libcups2 \
-    libdrm2 \
-    libdbus-1-3 \
-    libatspi2.0-0 \
-    libx11-6 \
-    libxcomposite1 \
-    libxdamage1 \
-    libxext6 \
-    libxfixes3 \
-    libxrandr2 \
-    libgbm1 \
-    libxcb1 \
-    libxkbcommon0 \
-    libpango-1.0-0 \
-    libcairo2 \
-    libasound2 \
-    && rm -rf /var/lib/apt/lists/*
+# Multi-stage build for smaller image size
+FROM python:3.11-slim AS builder
 
 WORKDIR /app
 
-# Copy package files
+# Copy only requirements first for better caching
 COPY setup.py README.md requirements.txt ./
 COPY src/ ./src/
 
-# Install the package
-RUN pip install --no-cache-dir -e .
+# Install build dependencies and create wheel
+RUN pip install --no-cache-dir build && \
+    python -m build --wheel --outdir /app/dist
 
-# Install Playwright browsers
-RUN playwright install chromium
+# Final stage - minimal runtime image
+FROM python:3.11-slim
 
-# Set environment variables
-ENV SAILOR_LOG_LEVEL=INFO
-ENV PYTHONUNBUFFERED=1
+# Install Playwright system dependencies in single layer
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    # Essential for Playwright
+    libnss3 libnspr4 libatk1.0-0 libatk-bridge2.0-0 \
+    libcups2 libdrm2 libdbus-1-3 libatspi2.0-0 \
+    libx11-6 libxcomposite1 libxdamage1 libxext6 \
+    libxfixes3 libxrandr2 libgbm1 libxcb1 \
+    libxkbcommon0 libpango-1.0-0 libcairo2 libasound2 \
+    # Minimal utilities
+    wget ca-certificates \
+    && apt-get clean \
+    && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
 
-# Run the stdio server
-ENTRYPOINT ["python", "-m", "sailor_mcp.stdio_wrapper"]
+WORKDIR /app
+
+# Copy wheel from builder and install
+COPY --from=builder /app/dist/*.whl /tmp/
+RUN pip install --no-cache-dir /tmp/*.whl && \
+    rm -rf /tmp/*.whl
+
+# Install Playwright chromium browser
+RUN playwright install chromium && \
+    # Clean up unnecessary browsers and cache
+    rm -rf /root/.cache/ms-playwright/ffmpeg* \
+    /root/.cache/ms-playwright/firefox* \
+    /root/.cache/ms-playwright/webkit*
+
+# Create non-root user for security
+RUN useradd -m -u 1000 sailor && \
+    mkdir -p /home/sailor/output && \
+    chown -R sailor:sailor /home/sailor
+
+USER sailor
+WORKDIR /home/sailor
+
+# Environment configuration
+ENV PYTHONUNBUFFERED=1 \
+    SAILOR_LOG_LEVEL=INFO \
+    PLAYWRIGHT_BROWSERS_PATH=/home/sailor/.cache/ms-playwright
+
+# Health check for container monitoring
+HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
+    CMD python -c "import sys; sys.exit(0)" || exit 1
+
+# Use the new FastMCP entry point
+ENTRYPOINT ["sailor-mcp"]
