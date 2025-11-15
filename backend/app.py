@@ -1,5 +1,7 @@
 from flask import Flask, request, jsonify, session, redirect, url_for, send_from_directory, render_template_string
 from flask_cors import CORS
+from flask_limiter import Limiter
+from flask_limiter.util import get_remote_address
 import os
 from dotenv import load_dotenv
 import openai
@@ -46,7 +48,50 @@ if not SECRET_KEY:
         logger.warning("=" * 80)
 
 app.secret_key = SECRET_KEY
-CORS(app, supports_credentials=True)
+
+# Secure CORS configuration
+# Allow specific origins only - configure via CORS_ORIGINS env var
+CORS_ORIGINS = os.environ.get('CORS_ORIGINS', '').strip()
+if CORS_ORIGINS:
+    # Parse comma-separated list of allowed origins
+    allowed_origins = [origin.strip() for origin in CORS_ORIGINS.split(',') if origin.strip()]
+    logger.info(f"CORS configured for origins: {allowed_origins}")
+else:
+    # Default safe origins for development
+    if FLASK_ENV == 'development':
+        allowed_origins = [
+            'http://localhost:3000',
+            'http://localhost:5000',
+            'http://127.0.0.1:3000',
+            'http://127.0.0.1:5000'
+        ]
+        logger.warning("Using default CORS origins for development. Set CORS_ORIGINS env var for production.")
+    else:
+        # Production: empty list means no CORS (same-origin only)
+        allowed_origins = []
+        logger.warning("CORS_ORIGINS not set in production - CORS disabled (same-origin only)")
+
+CORS(app,
+     origins=allowed_origins if allowed_origins else None,
+     supports_credentials=True,
+     allow_headers=['Content-Type', 'Authorization'],
+     methods=['GET', 'POST', 'OPTIONS'],
+     max_age=3600)
+
+# Rate limiting configuration
+# Protects against API abuse and excessive AI API costs
+limiter = Limiter(
+    app=app,
+    key_func=get_remote_address,
+    default_limits=["200 per day", "50 per hour"],
+    storage_uri=os.environ.get('RATE_LIMIT_STORAGE_URI', 'memory://'),
+    strategy="fixed-window",
+    # Add headers to response
+    headers_enabled=True,
+    # Swallow errors in case of storage issues (fail open in dev, but log)
+    swallow_errors=FLASK_ENV == 'development'
+)
+logger.info(f"Rate limiting enabled: 200/day, 50/hour per IP")
 
 # OAuth setup
 oauth = OAuth(app)
@@ -141,6 +186,7 @@ def health():
     return jsonify({"status": "healthy"})
 
 @app.route('/api/validate-key', methods=['POST'])
+@limiter.limit("5 per minute")
 def validate_api_key():
     try:
         data = request.json
@@ -189,6 +235,7 @@ def validate_api_key():
         return jsonify({"valid": False, "error": "Unexpected error during validation"}), 500
 
 @app.route('/api/generate-mermaid', methods=['POST'])
+@limiter.limit("10 per minute;30 per hour;100 per day")
 def generate_mermaid():
     try:
         data = request.json
@@ -258,11 +305,12 @@ Please provide only the Mermaid code without any explanation or markdown code bl
 
 def generate_with_anthropic(user_input, api_key):
     try:
-        logger.debug(f"Creating Anthropic client with API key: {api_key[:10]}..." if api_key else "No API key")
-        
+        # SECURITY: Never log API keys, even partially
+        logger.debug(f"Creating Anthropic client with API key: {'***set***' if api_key else 'not set'}")
+
         # Create client with only the api_key parameter
         client = Anthropic(api_key=api_key or session.get('anthropic_token'))
-        
+
         logger.debug("Anthropic client created successfully")
         
         prompt = f"""You are an expert in Mermaid diagram syntax. Based on the following user request, generate appropriate Mermaid diagram code.
