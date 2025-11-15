@@ -47,6 +47,14 @@ RATE_LIMIT_STORAGE_URI=redis://redis:6379/0
 # OAuth Configuration (optional)
 GOOGLE_CLIENT_ID=your-client-id
 GOOGLE_CLIENT_SECRET=your-client-secret
+
+# Error Tracking with Sentry (optional but recommended)
+SENTRY_DSN=https://your-public-key@o123456.ingest.sentry.io/7654321
+SENTRY_TRACES_SAMPLE_RATE=0.1
+SENTRY_RELEASE=sailor@2.0.0
+
+# Prometheus Metrics (enabled by default)
+ENABLE_METRICS=true
 ```
 
 ### 2. Docker Compose Production Setup
@@ -87,6 +95,10 @@ services:
       - RATE_LIMIT_STORAGE_URI=redis://redis:6379/0
       - OPENAI_API_KEY=${OPENAI_API_KEY:-}
       - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
+      - SENTRY_DSN=${SENTRY_DSN:-}
+      - SENTRY_TRACES_SAMPLE_RATE=${SENTRY_TRACES_SAMPLE_RATE:-0.1}
+      - SENTRY_RELEASE=${SENTRY_RELEASE:-sailor@2.0.0}
+      - ENABLE_METRICS=${ENABLE_METRICS:-true}
     env_file:
       - backend/.env
     depends_on:
@@ -294,13 +306,173 @@ curl https://yourdomain.com/api/health/detailed
 | `/api/health/live` | Liveness probe | 200 OK |
 | `/api/health/ready` | Readiness probe | 200 OK |
 
-### Prometheus Metrics (Future)
+### Sentry Error Tracking
 
-Add Prometheus exporter for:
-- Request count and latency
-- Rate limit hits
-- AI API calls and costs
-- Error rates
+Sailor integrates with Sentry for production error tracking and performance monitoring.
+
+#### Setup
+
+1. **Create a Sentry project** at https://sentry.io/
+2. **Get your DSN** from the project settings
+3. **Add to environment variables** in `backend/.env`:
+
+```bash
+# Sentry Configuration
+SENTRY_DSN=https://your-public-key@o123456.ingest.sentry.io/7654321
+SENTRY_TRACES_SAMPLE_RATE=0.1
+SENTRY_RELEASE=sailor@2.0.0
+```
+
+4. **Restart the backend** service
+
+#### Features
+
+- **Automatic error capture**: All unhandled exceptions are sent to Sentry
+- **Performance traces**: 10% of requests are traced (configurable)
+- **Sensitive data filtering**: API keys, passwords, and tokens are automatically filtered
+- **Environment tracking**: Errors tagged with production/development environment
+- **Release tracking**: Track errors by deployment version
+
+#### Verification
+
+```bash
+# Trigger a test error (in development)
+curl -X POST https://yourdomain.com/api/test-error
+
+# Check Sentry dashboard for the error
+```
+
+### Prometheus Metrics
+
+Sailor exposes Prometheus-compatible metrics at the `/metrics` endpoint.
+
+#### Metrics Available
+
+| Metric | Type | Description | Labels |
+|--------|------|-------------|--------|
+| `flask_http_request_total` | Counter | Total HTTP requests | method, status, endpoint |
+| `flask_http_request_duration_seconds` | Histogram | Request duration | method, endpoint |
+| `sailor_ai_api_calls_total` | Counter | AI API calls | provider, status |
+| `sailor_ai_api_duration_seconds` | Histogram | AI API call duration | provider |
+| `sailor_mermaid_generation_requests_total` | Counter | Mermaid generation requests | status |
+
+#### Setup with Docker Compose
+
+Add Prometheus and Grafana to your `docker-compose.prod.yml`:
+
+```yaml
+  # Prometheus
+  prometheus:
+    image: prom/prometheus:latest
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:9090:9090"  # Bind to localhost only
+    volumes:
+      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./monitoring/prometheus-alerts.yml:/etc/prometheus/alerts/alerts.yml:ro
+      - prometheus-data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/usr/share/prometheus/console_libraries'
+      - '--web.console.templates=/usr/share/prometheus/consoles'
+    networks:
+      - sailor-net
+    depends_on:
+      - backend
+
+  # Grafana
+  grafana:
+    image: grafana/grafana:latest
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:3000:3000"  # Bind to localhost only
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_ADMIN_PASSWORD:-admin}
+      - GF_USERS_ALLOW_SIGN_UP=false
+      - GF_SERVER_ROOT_URL=https://yourdomain.com/grafana
+    volumes:
+      - ./monitoring/grafana-dashboard.json:/etc/grafana/provisioning/dashboards/sailor.json:ro
+      - grafana-data:/var/lib/grafana
+    networks:
+      - sailor-net
+    depends_on:
+      - prometheus
+
+volumes:
+  prometheus-data:
+    driver: local
+  grafana-data:
+    driver: local
+```
+
+#### Configuration Files
+
+The monitoring configuration files are located in `/monitoring`:
+
+- `prometheus.yml` - Prometheus scrape configuration
+- `prometheus-alerts.yml` - Alert rules for critical conditions
+- `grafana-dashboard.json` - Pre-built dashboard with 9 panels
+
+#### Nginx Reverse Proxy for Grafana
+
+Add to your Nginx configuration:
+
+```nginx
+    # Grafana (protected)
+    location /grafana/ {
+        # Restrict to VPN or trusted IPs
+        allow 10.0.0.0/8;
+        allow YOUR_IP_ADDRESS;
+        deny all;
+
+        proxy_pass http://127.0.0.1:3000/;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+
+    # Prometheus (internal only)
+    location /prometheus/ {
+        allow 127.0.0.1;
+        deny all;
+
+        proxy_pass http://127.0.0.1:9090/;
+    }
+```
+
+#### Import Grafana Dashboard
+
+1. Access Grafana at `https://yourdomain.com/grafana`
+2. Login (default: admin/admin)
+3. Navigate to **Dashboards → Import**
+4. Upload `monitoring/grafana-dashboard.json`
+5. Select Prometheus data source
+6. Click **Import**
+
+#### Alert Rules Configured
+
+The `prometheus-alerts.yml` includes these production alerts:
+
+- **HighErrorRate**: >5% error rate for 5 minutes
+- **EndpointDown**: Service unavailable for 1 minute
+- **SlowResponseTime**: p95 >30s for 5 minutes
+- **HighAIAPIErrorRate**: >10% AI API errors for 5 minutes
+- **RateLimitHighUsage**: Approaching rate limits
+- **HighMemoryUsage**: >90% memory for 5 minutes
+- **LowDiskSpace**: <10% disk space
+
+Configure Alertmanager to receive notifications via email, Slack, or PagerDuty.
+
+#### Disable Metrics (Optional)
+
+To disable metrics collection:
+
+```bash
+# In backend/.env
+ENABLE_METRICS=false
+```
 
 ### Log Aggregation
 

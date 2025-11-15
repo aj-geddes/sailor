@@ -17,12 +17,85 @@ from functools import wraps
 
 load_dotenv()
 
+# ==================== SENTRY ERROR TRACKING ====================
+# Configure Sentry for error tracking (optional, only if SENTRY_DSN is set)
+SENTRY_DSN = os.environ.get('SENTRY_DSN')
+if SENTRY_DSN:
+    import sentry_sdk
+    from sentry_sdk.integrations.flask import FlaskIntegration
+    from sentry_sdk.integrations.logging import LoggingIntegration
+
+    # Configure Sentry
+    sentry_sdk.init(
+        dsn=SENTRY_DSN,
+        integrations=[
+            FlaskIntegration(),
+            LoggingIntegration(
+                level=logging.INFO,        # Capture info and above as breadcrumbs
+                event_level=logging.ERROR  # Send errors and above as events
+            )
+        ],
+        # Set traces_sample_rate to 1.0 to capture 100% of transactions for performance monitoring
+        # Adjust this value in production
+        traces_sample_rate=float(os.environ.get('SENTRY_TRACES_SAMPLE_RATE', '0.1')),
+
+        # Environment tagging
+        environment=os.environ.get('FLASK_ENV', 'production'),
+
+        # Release tracking (optional)
+        release=os.environ.get('SENTRY_RELEASE', 'sailor@2.0.0'),
+
+        # Before send hook to filter sensitive data
+        before_send=lambda event, hint: _sentry_before_send(event, hint),
+    )
+    print("✅ Sentry error tracking initialized")
+else:
+    print("ℹ️  Sentry not configured (SENTRY_DSN not set)")
+
+def _sentry_before_send(event, hint):
+    """
+    Filter sensitive data before sending to Sentry
+    Remove API keys, tokens, and other sensitive information
+    """
+    # Remove sensitive headers
+    if 'request' in event and 'headers' in event['request']:
+        headers = event['request']['headers']
+        sensitive_headers = ['Authorization', 'Cookie', 'X-API-Key']
+        for header in sensitive_headers:
+            if header in headers:
+                headers[header] = '[Filtered]'
+
+    # Remove sensitive form data
+    if 'request' in event and 'data' in event['request']:
+        data = event['request'].get('data', {})
+        if isinstance(data, dict):
+            sensitive_fields = ['api_key', 'password', 'secret', 'token']
+            for field in sensitive_fields:
+                if field in data:
+                    data[field] = '[Filtered]'
+
+    return event
+
 # Configure logging
 logging.basicConfig(
     level=logging.DEBUG,
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
 )
 logger = logging.getLogger(__name__)
+
+# ==================== PROMETHEUS METRICS ====================
+# Configure Prometheus metrics (optional, can be disabled via env var)
+ENABLE_METRICS = os.environ.get('ENABLE_METRICS', 'true').lower() == 'true'
+
+if ENABLE_METRICS:
+    from prometheus_flask_exporter import PrometheusMetrics
+
+    # This will be initialized after Flask app is created
+    metrics = None
+    print("✅ Prometheus metrics will be enabled")
+else:
+    metrics = None
+    print("ℹ️  Prometheus metrics disabled (ENABLE_METRICS=false)")
 
 # ==================== MIDDLEWARE & DECORATORS ====================
 
@@ -224,6 +297,43 @@ else:
         strict_transport_security=False
     )
     logger.info("Security headers enabled (Talisman) - Development mode (relaxed)")
+
+# ==================== PROMETHEUS METRICS INITIALIZATION ====================
+if ENABLE_METRICS:
+    from prometheus_flask_exporter import PrometheusMetrics
+
+    # Initialize Prometheus metrics
+    metrics = PrometheusMetrics(app)
+
+    # Custom metrics
+    metrics.info('sailor_app_info', 'Sailor application info', version='2.0.0', environment=FLASK_ENV)
+
+    # Track AI API calls with custom counter
+    from prometheus_client import Counter, Histogram
+
+    ai_api_calls = Counter(
+        'sailor_ai_api_calls_total',
+        'Total AI API calls',
+        ['provider', 'status']
+    )
+
+    ai_api_duration = Histogram(
+        'sailor_ai_api_duration_seconds',
+        'AI API call duration',
+        ['provider']
+    )
+
+    mermaid_generation_requests = Counter(
+        'sailor_mermaid_generation_requests_total',
+        'Total Mermaid generation requests',
+        ['status']
+    )
+
+    logger.info("Prometheus metrics initialized at /metrics")
+else:
+    ai_api_calls = None
+    ai_api_duration = None
+    mermaid_generation_requests = None
 
 # OAuth setup
 oauth = OAuth(app)
@@ -467,24 +577,31 @@ def validate_api_key():
 )
 @with_timeout(60)
 def generate_mermaid():
+    start_time = time.time()
+    provider = None
+
     try:
         data = request.json
         logger.debug(f"Received request data: {data}")
-        
+
         user_input = data.get('input', '')
         api_key = data.get('api_key', '')
         provider = data.get('provider', 'openai')
-        
+
         logger.info(f"Processing request - Provider: {provider}, Input length: {len(user_input)}, Has API key: {bool(api_key)}")
-        
+
         if not user_input:
             logger.warning("No input provided")
+            if mermaid_generation_requests:
+                mermaid_generation_requests.labels(status='error_no_input').inc()
             return jsonify({"error": "No input provided"}), 400
-        
+
         if not api_key and provider not in session.get('authenticated_providers', []):
             logger.warning("No API key or OAuth authentication")
+            if mermaid_generation_requests:
+                mermaid_generation_requests.labels(status='error_no_auth').inc()
             return jsonify({"error": "API key required or OAuth authentication needed"}), 401
-        
+
         try:
             if provider == 'openai':
                 logger.info("Generating with OpenAI")
@@ -494,18 +611,37 @@ def generate_mermaid():
                 response = generate_with_anthropic(user_input, api_key)
             else:
                 logger.error(f"Invalid provider: {provider}")
+                if mermaid_generation_requests:
+                    mermaid_generation_requests.labels(status='error_invalid_provider').inc()
                 return jsonify({"error": "Invalid provider"}), 400
-            
+
+            # Track successful generation
+            if ai_api_calls:
+                ai_api_calls.labels(provider=provider, status='success').inc()
+            if ai_api_duration:
+                ai_api_duration.labels(provider=provider).observe(time.time() - start_time)
+            if mermaid_generation_requests:
+                mermaid_generation_requests.labels(status='success').inc()
+
             logger.info("Successfully generated Mermaid code")
             return jsonify({
                 "mermaid_code": response,
                 "success": True
             })
         except Exception as e:
+            # Track failed API call
+            if ai_api_calls and provider:
+                ai_api_calls.labels(provider=provider, status='error').inc()
+            if mermaid_generation_requests:
+                mermaid_generation_requests.labels(status='error_generation').inc()
+
             logger.error(f"Error generating Mermaid code: {str(e)}")
             logger.error(traceback.format_exc())
             return jsonify({"error": str(e)}), 500
     except Exception as e:
+        if mermaid_generation_requests:
+            mermaid_generation_requests.labels(status='error_unexpected').inc()
+
         logger.error(f"Unexpected error in generate_mermaid: {str(e)}")
         logger.error(traceback.format_exc())
         return jsonify({"error": f"Unexpected error: {str(e)}"}), 500

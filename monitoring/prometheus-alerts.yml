@@ -1,0 +1,98 @@
+# Prometheus Alert Rules for Sailor MCP Server
+
+groups:
+  - name: sailor_alerts
+    interval: 30s
+    rules:
+      # High error rate
+      - alert: HighErrorRate
+        expr: |
+          (
+            sum(rate(flask_http_request_total{status=~"5.."}[5m]))
+            /
+            sum(rate(flask_http_request_total[5m]))
+          ) > 0.05
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High error rate detected"
+          description: "Error rate is above 5% (current value: {{ $value | humanizePercentage }})"
+
+      # API endpoint down
+      - alert: EndpointDown
+        expr: up{job="sailor-backend"} == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Sailor backend is down"
+          description: "Sailor backend has been down for more than 1 minute"
+
+      # Slow response times
+      - alert: SlowResponseTime
+        expr: |
+          histogram_quantile(0.95,
+            sum by(le) (rate(flask_http_request_duration_seconds_bucket{path="/api/generate-mermaid"}[5m]))
+          ) > 30
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Slow AI generation response time"
+          description: "95th percentile response time is above 30s (current: {{ $value }}s)"
+
+      # High AI API error rate
+      - alert: HighAIAPIErrorRate
+        expr: |
+          (
+            sum(rate(sailor_ai_api_calls_total{status="error"}[5m]))
+            /
+            sum(rate(sailor_ai_api_calls_total[5m]))
+          ) > 0.1
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High AI API error rate"
+          description: "AI API error rate is above 10% (current: {{ $value | humanizePercentage }})"
+
+      # Rate limit approaching
+      - alert: RateLimitHighUsage
+        expr: |
+          sum(rate(flask_http_request_total{path="/api/generate-mermaid"}[1h]))
+          > 25
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Rate limit usage high"
+          description: "Request rate is approaching limits (current: {{ $value }} req/s)"
+
+      # Memory usage high
+      - alert: HighMemoryUsage
+        expr: |
+          (node_memory_MemTotal_bytes - node_memory_MemAvailable_bytes)
+          /
+          node_memory_MemTotal_bytes
+          > 0.90
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High memory usage"
+          description: "Memory usage is above 90% (current: {{ $value | humanizePercentage }})"
+
+      # Disk space low
+      - alert: LowDiskSpace
+        expr: |
+          (node_filesystem_avail_bytes{mountpoint="/"}
+          /
+          node_filesystem_size_bytes{mountpoint="/"})
+          < 0.10
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Low disk space"
+          description: "Disk space is below 10% (current: {{ $value | humanizePercentage }} free)"
