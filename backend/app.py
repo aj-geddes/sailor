@@ -2,6 +2,7 @@ from flask import Flask, request, jsonify, session, redirect, url_for, send_from
 from flask_cors import CORS
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
+from flask_talisman import Talisman
 import os
 from dotenv import load_dotenv
 import openai
@@ -11,6 +12,8 @@ import json
 import logging
 import traceback
 import time
+import signal
+from functools import wraps
 
 load_dotenv()
 
@@ -20,6 +23,88 @@ logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
 )
 logger = logging.getLogger(__name__)
+
+# ==================== MIDDLEWARE & DECORATORS ====================
+
+def validate_json(required_fields=None, optional_fields=None, max_length=None):
+    """
+    Decorator for validating JSON request data
+
+    Args:
+        required_fields: List of required field names
+        optional_fields: List of optional field names
+        max_length: Dict of field_name: max_length for string fields
+    """
+    def decorator(f):
+        @wraps(f)
+        def decorated_function(*args, **kwargs):
+            # Check content type
+            if not request.is_json:
+                return jsonify({"error": "Content-Type must be application/json"}), 400
+
+            data = request.get_json()
+            if data is None:
+                return jsonify({"error": "Invalid JSON"}), 400
+
+            # Validate required fields
+            if required_fields:
+                missing = [field for field in required_fields if field not in data]
+                if missing:
+                    return jsonify({"error": f"Missing required fields: {', '.join(missing)}"}), 400
+
+            # Validate field lengths
+            if max_length:
+                for field, max_len in max_length.items():
+                    if field in data and isinstance(data[field], str):
+                        if len(data[field]) > max_len:
+                            return jsonify({
+                                "error": f"Field '{field}' exceeds maximum length of {max_len}"
+                            }), 400
+
+            # Validate only allowed fields
+            if required_fields or optional_fields:
+                allowed = set(required_fields or []) | set(optional_fields or [])
+                extra = set(data.keys()) - allowed
+                if extra:
+                    logger.warning(f"Extra fields provided: {extra}")
+
+            return f(*args, **kwargs)
+        return decorated_function
+    return decorator
+
+def timeout_handler(signum, frame):
+    """Handle timeout signal"""
+    raise TimeoutError("Request timed out")
+
+def with_timeout(seconds=30):
+    """
+    Decorator to add timeout to request handling
+    Note: Only works on Unix systems
+    """
+    def decorator(f):
+        @wraps(f)
+        def decorated_function(*args, **kwargs):
+            # Skip timeout on Windows
+            if os.name == 'nt':
+                return f(*args, **kwargs)
+
+            # Set timeout alarm
+            old_handler = signal.signal(signal.SIGALRM, timeout_handler)
+            signal.alarm(seconds)
+
+            try:
+                result = f(*args, **kwargs)
+            except TimeoutError:
+                logger.error(f"Request timeout after {seconds}s: {request.path}")
+                return jsonify({"error": f"Request timeout after {seconds} seconds"}), 504
+            finally:
+                # Restore old signal handler and cancel alarm
+                signal.alarm(0)
+                signal.signal(signal.SIGALRM, old_handler)
+
+            return result
+        return decorated_function
+    return decorator
 
 app = Flask(__name__)
 
@@ -92,6 +177,53 @@ limiter = Limiter(
     swallow_errors=FLASK_ENV == 'development'
 )
 logger.info(f"Rate limiting enabled: 200/day, 50/hour per IP")
+
+# Security headers configuration
+# Protects against XSS, clickjacking, and other web vulnerabilities
+if FLASK_ENV == 'production':
+    # Production: Strict security headers
+    csp = {
+        'default-src': "'self'",
+        'script-src': [
+            "'self'",
+            'https://cdn.jsdelivr.net',
+            'https://cdnjs.cloudflare.com',
+            "'unsafe-inline'"  # Needed for Mermaid.js
+        ],
+        'style-src': [
+            "'self'",
+            'https://cdnjs.cloudflare.com',
+            "'unsafe-inline'"
+        ],
+        'img-src': ["'self'", 'data:', 'https:'],
+        'font-src': ["'self'", 'https://cdnjs.cloudflare.com'],
+        'connect-src': ["'self'"],
+    }
+
+    Talisman(
+        app,
+        force_https=True,
+        strict_transport_security=True,
+        strict_transport_security_max_age=31536000,  # 1 year
+        content_security_policy=csp,
+        content_security_policy_nonce_in=['script-src'],
+        referrer_policy='strict-origin-when-cross-origin',
+        feature_policy={
+            'geolocation': "'none'",
+            'camera': "'none'",
+            'microphone': "'none'",
+        }
+    )
+    logger.info("Security headers enabled (Talisman) - Production mode")
+else:
+    # Development: Relaxed for local development
+    Talisman(
+        app,
+        force_https=False,
+        content_security_policy=False,  # Disable CSP in dev for easier debugging
+        strict_transport_security=False
+    )
+    logger.info("Security headers enabled (Talisman) - Development mode (relaxed)")
 
 # OAuth setup
 oauth = OAuth(app)
@@ -183,10 +315,102 @@ gitGraph
 
 @app.route('/api/health', methods=['GET'])
 def health():
-    return jsonify({"status": "healthy"})
+    """Basic health check endpoint"""
+    return jsonify({
+        "status": "healthy",
+        "service": "sailor-backend",
+        "version": "2.0.0"
+    })
+
+@app.route('/api/health/detailed', methods=['GET'])
+def health_detailed():
+    """Detailed health check with dependency verification"""
+    health_status = {
+        "status": "healthy",
+        "service": "sailor-backend",
+        "version": "2.0.0",
+        "timestamp": time.time(),
+        "environment": FLASK_ENV,
+        "checks": {}
+    }
+
+    # Check Flask app
+    health_status["checks"]["flask"] = {
+        "status": "ok",
+        "message": "Flask application running"
+    }
+
+    # Check rate limiter
+    try:
+        # Try to access rate limiter storage
+        _ = limiter.storage
+        health_status["checks"]["rate_limiter"] = {
+            "status": "ok",
+            "message": "Rate limiter operational"
+        }
+    except Exception as e:
+        health_status["checks"]["rate_limiter"] = {
+            "status": "degraded",
+            "message": f"Rate limiter issue: {str(e)}"
+        }
+        health_status["status"] = "degraded"
+
+    # Check configuration
+    config_issues = []
+    if not SECRET_KEY or (FLASK_ENV == 'production' and len(SECRET_KEY) < 32):
+        config_issues.append("SECRET_KEY not properly configured")
+    if FLASK_ENV == 'production' and not CORS_ORIGINS:
+        config_issues.append("CORS_ORIGINS not set in production")
+
+    if config_issues:
+        health_status["checks"]["configuration"] = {
+            "status": "warning",
+            "issues": config_issues
+        }
+        if health_status["status"] == "healthy":
+            health_status["status"] = "degraded"
+    else:
+        health_status["checks"]["configuration"] = {
+            "status": "ok",
+            "message": "Configuration validated"
+        }
+
+    # Overall status
+    statuses = [check.get("status") for check in health_status["checks"].values()]
+    if "error" in statuses:
+        health_status["status"] = "unhealthy"
+        return jsonify(health_status), 503
+    elif "degraded" in statuses or "warning" in statuses:
+        health_status["status"] = "degraded"
+        return jsonify(health_status), 200
+    else:
+        return jsonify(health_status), 200
+
+@app.route('/api/health/live', methods=['GET'])
+def health_live():
+    """Liveness probe - is the app running?"""
+    return jsonify({"status": "alive"}), 200
+
+@app.route('/api/health/ready', methods=['GET'])
+def health_ready():
+    """Readiness probe - can the app serve requests?"""
+    # Check if critical dependencies are available
+    try:
+        # Verify app is configured
+        if not SECRET_KEY:
+            return jsonify({"status": "not ready", "reason": "SECRET_KEY not set"}), 503
+
+        return jsonify({"status": "ready"}), 200
+    except Exception as e:
+        return jsonify({"status": "not ready", "reason": str(e)}), 503
 
 @app.route('/api/validate-key', methods=['POST'])
 @limiter.limit("5 per minute")
+@validate_json(
+    required_fields=['api_key', 'provider'],
+    max_length={'api_key': 500, 'provider': 50}
+)
+@with_timeout(10)
 def validate_api_key():
     try:
         data = request.json
@@ -236,6 +460,12 @@ def validate_api_key():
 
 @app.route('/api/generate-mermaid', methods=['POST'])
 @limiter.limit("10 per minute;30 per hour;100 per day")
+@validate_json(
+    required_fields=['input'],
+    optional_fields=['api_key', 'provider'],
+    max_length={'input': 10000, 'api_key': 500, 'provider': 50}
+)
+@with_timeout(60)
 def generate_mermaid():
     try:
         data = request.json
