@@ -20,7 +20,32 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 app = Flask(__name__)
-app.secret_key = os.environ.get('SECRET_KEY', 'dev-secret-key-change-in-production')
+
+# Secure SECRET_KEY configuration
+# In production, SECRET_KEY MUST be set via environment variable
+# In development, we generate a random key if not provided
+FLASK_ENV = os.environ.get('FLASK_ENV', 'production')
+SECRET_KEY = os.environ.get('SECRET_KEY')
+
+if not SECRET_KEY:
+    if FLASK_ENV == 'production':
+        logger.error("CRITICAL: SECRET_KEY environment variable is not set in production!")
+        logger.error("Set SECRET_KEY to a secure random value before starting the application.")
+        logger.error("Generate one with: python -c 'import secrets; print(secrets.token_hex(32))'")
+        raise RuntimeError(
+            "SECRET_KEY must be set in production environment. "
+            "Set the SECRET_KEY environment variable to a secure random value."
+        )
+    else:
+        # Development mode: generate a random key for this session
+        import secrets
+        SECRET_KEY = secrets.token_hex(32)
+        logger.warning("=" * 80)
+        logger.warning("WARNING: Using auto-generated SECRET_KEY for development session")
+        logger.warning("This is ONLY safe for development. Set SECRET_KEY env var for production.")
+        logger.warning("=" * 80)
+
+app.secret_key = SECRET_KEY
 CORS(app, supports_credentials=True)
 
 # OAuth setup
