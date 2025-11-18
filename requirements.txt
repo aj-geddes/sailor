@@ -5,11 +5,12 @@ fastmcp>=0.5.0
 # Web framework (for backend)
 flask>=2.3.0
 flask-cors>=4.0.0
+flask-limiter>=3.5.0
 
 # AI SDKs
 openai>=1.0.0
-anthropic==0.21.3
-httpx==0.25.0
+anthropic>=0.39.0
+httpx>=0.25.0
 
 # Utilities
 python-dotenv>=1.0.0
