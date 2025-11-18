@@ -45,7 +45,7 @@ pytest tests/unit/test_server.py -v
 pytest --cov=sailor_mcp tests/
 
 # Quick test runner
-python run_tests.py
+python scripts/run_tests.py
 
 # Run integration tests (requires browser)
 pytest tests/integration/ -v

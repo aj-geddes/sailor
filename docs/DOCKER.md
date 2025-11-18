@@ -226,7 +226,7 @@ docker run --user $(id -u):$(id -g) ...
 Run the metrics script to verify everything is working:
 
 ```bash
-./docker-build-metrics.sh
+./scripts/docker-build-metrics.sh
 ```
 
 This will:
@@ -259,5 +259,5 @@ This will:
 For issues or questions:
 - Check logs: `docker-compose logs`
 - Run health checks: `docker-compose ps`
-- Verify metrics: `./docker-build-metrics.sh`
+- Verify metrics: `./scripts/docker-build-metrics.sh`
 - Review configuration: Environment variables and volumes
