@@ -1,0 +1,60 @@
+# Sailor Documentation Site Configuration
+
+# Site settings
+title: "Sailor Documentation"
+description: "Get a picture of your Mermaid! Comprehensive guide for the Sailor diagram generator."
+baseurl: "/sailor"
+url: "https://aj-geddes.github.io"
+
+# Theme configuration
+theme: jekyll-theme-cayman
+remote_theme: pages-themes/cayman@v0.2.0
+plugins:
+  - jekyll-remote-theme
+  - jekyll-seo-tag
+  - jekyll-sitemap
+
+# Navigation
+nav_links:
+  - title: Home
+    url: /
+  - title: Setup Guide
+    url: /setup-guide
+  - title: Admin Guide
+    url: /admin-guide
+  - title: Operations Guide
+    url: /operations-guide
+  - title: Troubleshooting
+    url: /troubleshooting-guide
+
+# Sailor theme colors (nautical theme)
+sailor_colors:
+  primary: "#0066cc"      # Ocean blue
+  secondary: "#1e90ff"    # Dodger blue
+  accent: "#20b2aa"       # Light sea green
+  dark: "#003366"         # Navy
+  light: "#e6f2ff"        # Light blue
+
+# Build settings
+markdown: kramdown
+kramdown:
+  input: GFM
+  syntax_highlighter: rouge
+  hard_wrap: false
+
+# Mermaid configuration
+mermaid:
+  enabled: true
+  version: "10.6.1"
+
+# Exclude from build
+exclude:
+  - README.md
+  - DOCKER.md
+  - PRODUCTION.md
+  - archive/
+
+# GitHub metadata
+github:
+  repository_url: https://github.com/aj-geddes/sailor
+  repository_name: sailor

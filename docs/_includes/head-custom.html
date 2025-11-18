@@ -1,0 +1,162 @@
+<!-- Sailor Documentation - Custom Head -->
+
+<!-- Mermaid.js for diagram rendering -->
+<script type="module">
+  import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@10.6.1/dist/mermaid.esm.min.mjs';
+
+  mermaid.initialize({
+    startOnLoad: true,
+    theme: 'default',
+    themeVariables: {
+      primaryColor: '#0066cc',
+      primaryTextColor: '#fff',
+      primaryBorderColor: '#003366',
+      lineColor: '#1e90ff',
+      secondaryColor: '#20b2aa',
+      tertiaryColor: '#e6f2ff',
+      background: '#ffffff',
+      mainBkg: '#0066cc',
+      secondBkg: '#1e90ff',
+      mainContrastColor: '#ffffff',
+      darkMode: false,
+      fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif'
+    },
+    flowchart: {
+      htmlLabels: true,
+      curve: 'basis'
+    },
+    sequence: {
+      diagramMarginX: 50,
+      diagramMarginY: 10,
+      actorMargin: 50,
+      width: 150,
+      height: 65,
+      boxMargin: 10,
+      boxTextMargin: 5,
+      noteMargin: 10,
+      messageMargin: 35
+    }
+  });
+</script>
+
+<!-- Custom Sailor theme styles -->
+<style>
+  :root {
+    --sailor-primary: #0066cc;
+    --sailor-secondary: #1e90ff;
+    --sailor-accent: #20b2aa;
+    --sailor-dark: #003366;
+    --sailor-light: #e6f2ff;
+  }
+
+  /* Navigation styling */
+  .site-nav {
+    background: linear-gradient(135deg, var(--sailor-dark) 0%, var(--sailor-primary) 100%);
+    padding: 1rem;
+    margin: -2rem -2rem 2rem -2rem;
+    border-radius: 0;
+  }
+
+  .site-nav ul {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 1rem;
+    justify-content: center;
+  }
+
+  .site-nav a {
+    color: white;
+    text-decoration: none;
+    padding: 0.5rem 1rem;
+    border-radius: 4px;
+    transition: background-color 0.3s;
+    font-weight: 500;
+  }
+
+  .site-nav a:hover {
+    background-color: rgba(255, 255, 255, 0.2);
+  }
+
+  .site-nav a.active {
+    background-color: rgba(255, 255, 255, 0.3);
+  }
+
+  /* Sailor-themed accents */
+  .main-content h1,
+  .main-content h2,
+  .main-content h3 {
+    color: var(--sailor-dark);
+    border-bottom: 2px solid var(--sailor-accent);
+    padding-bottom: 0.3rem;
+  }
+
+  .main-content a {
+    color: var(--sailor-primary);
+  }
+
+  .main-content a:hover {
+    color: var(--sailor-secondary);
+  }
+
+  /* Code blocks */
+  .main-content pre {
+    border-left: 4px solid var(--sailor-accent);
+  }
+
+  /* Mermaid diagram container */
+  .mermaid {
+    text-align: center;
+    margin: 2rem 0;
+    padding: 1rem;
+    background: var(--sailor-light);
+    border-radius: 8px;
+    border: 1px solid var(--sailor-accent);
+  }
+
+  /* Info boxes */
+  blockquote {
+    border-left: 4px solid var(--sailor-accent);
+    background: var(--sailor-light);
+    padding: 1rem;
+    margin: 1.5rem 0;
+  }
+
+  /* Anchor emoji for sailor theme */
+  h1::before, h2::before {
+    content: "⚓ ";
+    color: var(--sailor-accent);
+  }
+
+  /* Wave decoration */
+  .page-header {
+    background: linear-gradient(135deg, var(--sailor-dark) 0%, var(--sailor-primary) 100%);
+  }
+
+  /* Badge styling */
+  .badge {
+    display: inline-block;
+    padding: 0.25rem 0.5rem;
+    background: var(--sailor-accent);
+    color: white;
+    border-radius: 4px;
+    font-size: 0.875rem;
+    font-weight: 500;
+  }
+
+  /* Card styling for guides */
+  .guide-card {
+    border: 2px solid var(--sailor-accent);
+    border-radius: 8px;
+    padding: 1.5rem;
+    margin: 1rem 0;
+    background: white;
+    box-shadow: 0 2px 8px rgba(0, 102, 204, 0.1);
+  }
+
+  .guide-card h3::before {
+    content: "📖 ";
+  }
+</style>
