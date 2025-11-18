@@ -172,6 +172,17 @@ sailor/
 └── requirements.txt         # FastMCP dependencies
 ```
 
+## 📚 Documentation
+
+Comprehensive documentation is available in the [`docs/`](docs/) directory:
+
+- **[docs/DOCKER.md](docs/DOCKER.md)** - Docker deployment, container configuration, and best practices
+- **[docs/PRODUCTION.md](docs/PRODUCTION.md)** - Production deployment, security hardening, and monitoring
+- **[docs/README.md](docs/README.md)** - Complete documentation index
+- **[CLAUDE.md](CLAUDE.md)** - AI assistant development guide
+
+Development scripts are located in the [`scripts/`](scripts/) directory.
+
 ## 🧪 Development
 
 ### Web UI Development
