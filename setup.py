@@ -15,7 +15,7 @@ def read_requirements(filename):
 # Base requirements
 install_requires = [
     "playwright>=1.40.0",
-    "mcp-python>=0.1.0",
+    "fastmcp>=0.5.0",
     "asyncio",
     "fastapi>=0.104.0",
     "uvicorn[standard]>=0.24.0",
@@ -37,7 +37,7 @@ dev_requires = [
 
 setup(
     name="sailor-mcp",
-    version="1.0.0",
+    version="2.0.0",
     author="Sailor Site Team",
     author_email="team@sailor-site.com",
     description="MCP server for generating and rendering Mermaid diagrams with AI assistance",
@@ -75,9 +75,9 @@ setup(
     },
     entry_points={
         "console_scripts": [
-            "sailor-mcp=sailor_mcp.stdio_wrapper:main",
-            "sailor-mcp-http=sailor_mcp.http_server:main",
-            "sailor-mcp-stdio=sailor_mcp.stdio_wrapper:main",
+            "sailor-mcp=sailor_mcp.server:main_stdio",
+            "sailor-mcp-http=sailor_mcp.server:main_http",
+            "sailor-mcp-stdio=sailor_mcp.server:main_stdio",
         ],
     },
     include_package_data=True,

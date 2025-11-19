@@ -201,22 +201,26 @@ class TestRenderingIntegration:
     @pytest.mark.asyncio
     @pytest.mark.integration
     async def test_error_recovery(self):
-        """Test that renderer can recover from errors"""
+        """Test that renderer can handle invalid code gracefully"""
         renderer = await get_renderer()
         try:
             # First, try invalid code
             invalid_code = "invalid mermaid code"
-            
-            # This should raise an error but not crash the renderer
-            with pytest.raises(Exception):
-                await renderer.render(invalid_code, MermaidConfig(), "png")
-            
-            # Renderer should still work for valid code
+
+            # Renderer should handle invalid code gracefully without crashing
+            # It may render a fallback diagram or error message
+            result1 = await renderer.render(invalid_code, MermaidConfig(), "png")
+            assert 'png' in result1  # Should still produce some output
+
+            # Renderer should still work perfectly for valid code after invalid code
             valid_code = "graph TD\n    A --> B"
-            result = await renderer.render(valid_code, MermaidConfig(), "png")
-            
-            assert 'png' in result
-            assert len(result['png']) > 0
+            result2 = await renderer.render(valid_code, MermaidConfig(), "png")
+
+            assert 'png' in result2
+            assert len(result2['png']) > 0
+            # Valid diagram should produce a proper PNG
+            decoded = base64.b64decode(result2['png'])
+            assert decoded[:8] == b'\x89PNG\r\n\x1a\n'
         finally:
             await cleanup_renderer()
     

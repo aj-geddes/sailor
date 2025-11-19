@@ -1,5 +1,8 @@
 from flask import Flask, request, jsonify, session, redirect, url_for, send_from_directory, render_template_string
 from flask_cors import CORS
+from flask_limiter import Limiter
+from flask_limiter.util import get_remote_address
+from flask_talisman import Talisman
 import os
 from dotenv import load_dotenv
 import openai
@@ -9,8 +12,69 @@ import json
 import logging
 import traceback
 import time
+import signal
+from functools import wraps
 
 load_dotenv()
+
+# ==================== SENTRY ERROR TRACKING ====================
+# Configure Sentry for error tracking (optional, only if SENTRY_DSN is set)
+SENTRY_DSN = os.environ.get('SENTRY_DSN')
+if SENTRY_DSN:
+    import sentry_sdk
+    from sentry_sdk.integrations.flask import FlaskIntegration
+    from sentry_sdk.integrations.logging import LoggingIntegration
+
+    # Configure Sentry
+    sentry_sdk.init(
+        dsn=SENTRY_DSN,
+        integrations=[
+            FlaskIntegration(),
+            LoggingIntegration(
+                level=logging.INFO,        # Capture info and above as breadcrumbs
+                event_level=logging.ERROR  # Send errors and above as events
+            )
+        ],
+        # Set traces_sample_rate to 1.0 to capture 100% of transactions for performance monitoring
+        # Adjust this value in production
+        traces_sample_rate=float(os.environ.get('SENTRY_TRACES_SAMPLE_RATE', '0.1')),
+
+        # Environment tagging
+        environment=os.environ.get('FLASK_ENV', 'production'),
+
+        # Release tracking (optional)
+        release=os.environ.get('SENTRY_RELEASE', 'sailor@2.0.0'),
+
+        # Before send hook to filter sensitive data
+        before_send=lambda event, hint: _sentry_before_send(event, hint),
+    )
+    print("✅ Sentry error tracking initialized")
+else:
+    print("ℹ️  Sentry not configured (SENTRY_DSN not set)")
+
+def _sentry_before_send(event, hint):
+    """
+    Filter sensitive data before sending to Sentry
+    Remove API keys, tokens, and other sensitive information
+    """
+    # Remove sensitive headers
+    if 'request' in event and 'headers' in event['request']:
+        headers = event['request']['headers']
+        sensitive_headers = ['Authorization', 'Cookie', 'X-API-Key']
+        for header in sensitive_headers:
+            if header in headers:
+                headers[header] = '[Filtered]'
+
+    # Remove sensitive form data
+    if 'request' in event and 'data' in event['request']:
+        data = event['request'].get('data', {})
+        if isinstance(data, dict):
+            sensitive_fields = ['api_key', 'password', 'secret', 'token']
+            for field in sensitive_fields:
+                if field in data:
+                    data[field] = '[Filtered]'
+
+    return event
 
 # Configure logging
 logging.basicConfig(
@@ -19,9 +83,257 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
+# ==================== PROMETHEUS METRICS ====================
+# Configure Prometheus metrics (optional, can be disabled via env var)
+ENABLE_METRICS = os.environ.get('ENABLE_METRICS', 'true').lower() == 'true'
+
+if ENABLE_METRICS:
+    from prometheus_flask_exporter import PrometheusMetrics
+
+    # This will be initialized after Flask app is created
+    metrics = None
+    print("✅ Prometheus metrics will be enabled")
+else:
+    metrics = None
+    print("ℹ️  Prometheus metrics disabled (ENABLE_METRICS=false)")
+
+# ==================== MIDDLEWARE & DECORATORS ====================
+
+def validate_json(required_fields=None, optional_fields=None, max_length=None):
+    """
+    Decorator for validating JSON request data
+
+    Args:
+        required_fields: List of required field names
+        optional_fields: List of optional field names
+        max_length: Dict of field_name: max_length for string fields
+    """
+    def decorator(f):
+        @wraps(f)
+        def decorated_function(*args, **kwargs):
+            # Check content type
+            if not request.is_json:
+                return jsonify({"error": "Content-Type must be application/json"}), 400
+
+            data = request.get_json()
+            if data is None:
+                return jsonify({"error": "Invalid JSON"}), 400
+
+            # Validate required fields
+            if required_fields:
+                missing = [field for field in required_fields if field not in data]
+                if missing:
+                    return jsonify({"error": f"Missing required fields: {', '.join(missing)}"}), 400
+
+            # Validate field lengths
+            if max_length:
+                for field, max_len in max_length.items():
+                    if field in data and isinstance(data[field], str):
+                        if len(data[field]) > max_len:
+                            return jsonify({
+                                "error": f"Field '{field}' exceeds maximum length of {max_len}"
+                            }), 400
+
+            # Validate only allowed fields
+            if required_fields or optional_fields:
+                allowed = set(required_fields or []) | set(optional_fields or [])
+                extra = set(data.keys()) - allowed
+                if extra:
+                    logger.warning(f"Extra fields provided: {extra}")
+
+            return f(*args, **kwargs)
+        return decorated_function
+    return decorator
+
+def timeout_handler(signum, frame):
+    """Handle timeout signal"""
+    raise TimeoutError("Request timed out")
+
+def with_timeout(seconds=30):
+    """
+    Decorator to add timeout to request handling
+    Note: Only works on Unix systems
+    """
+    def decorator(f):
+        @wraps(f)
+        def decorated_function(*args, **kwargs):
+            # Skip timeout on Windows
+            if os.name == 'nt':
+                return f(*args, **kwargs)
+
+            # Set timeout alarm
+            old_handler = signal.signal(signal.SIGALRM, timeout_handler)
+            signal.alarm(seconds)
+
+            try:
+                result = f(*args, **kwargs)
+            except TimeoutError:
+                logger.error(f"Request timeout after {seconds}s: {request.path}")
+                return jsonify({"error": f"Request timeout after {seconds} seconds"}), 504
+            finally:
+                # Restore old signal handler and cancel alarm
+                signal.alarm(0)
+                signal.signal(signal.SIGALRM, old_handler)
+
+            return result
+        return decorated_function
+    return decorator
+
 app = Flask(__name__)
-app.secret_key = os.environ.get('SECRET_KEY', 'dev-secret-key-change-in-production')
-CORS(app, supports_credentials=True)
+
+# Secure SECRET_KEY configuration
+# In production, SECRET_KEY MUST be set via environment variable
+# In development, we generate a random key if not provided
+FLASK_ENV = os.environ.get('FLASK_ENV', 'production')
+SECRET_KEY = os.environ.get('SECRET_KEY')
+
+if not SECRET_KEY:
+    if FLASK_ENV == 'production':
+        logger.error("CRITICAL: SECRET_KEY environment variable is not set in production!")
+        logger.error("Set SECRET_KEY to a secure random value before starting the application.")
+        logger.error("Generate one with: python -c 'import secrets; print(secrets.token_hex(32))'")
+        raise RuntimeError(
+            "SECRET_KEY must be set in production environment. "
+            "Set the SECRET_KEY environment variable to a secure random value."
+        )
+    else:
+        # Development mode: generate a random key for this session
+        import secrets
+        SECRET_KEY = secrets.token_hex(32)
+        logger.warning("=" * 80)
+        logger.warning("WARNING: Using auto-generated SECRET_KEY for development session")
+        logger.warning("This is ONLY safe for development. Set SECRET_KEY env var for production.")
+        logger.warning("=" * 80)
+
+app.secret_key = SECRET_KEY
+
+# Secure CORS configuration
+# Allow specific origins only - configure via CORS_ORIGINS env var
+CORS_ORIGINS = os.environ.get('CORS_ORIGINS', '').strip()
+if CORS_ORIGINS:
+    # Parse comma-separated list of allowed origins
+    allowed_origins = [origin.strip() for origin in CORS_ORIGINS.split(',') if origin.strip()]
+    logger.info(f"CORS configured for origins: {allowed_origins}")
+else:
+    # Default safe origins for development
+    if FLASK_ENV == 'development':
+        allowed_origins = [
+            'http://localhost:3000',
+            'http://localhost:5000',
+            'http://127.0.0.1:3000',
+            'http://127.0.0.1:5000'
+        ]
+        logger.warning("Using default CORS origins for development. Set CORS_ORIGINS env var for production.")
+    else:
+        # Production: empty list means no CORS (same-origin only)
+        allowed_origins = []
+        logger.warning("CORS_ORIGINS not set in production - CORS disabled (same-origin only)")
+
+CORS(app,
+     origins=allowed_origins if allowed_origins else None,
+     supports_credentials=True,
+     allow_headers=['Content-Type', 'Authorization'],
+     methods=['GET', 'POST', 'OPTIONS'],
+     max_age=3600)
+
+# Rate limiting configuration
+# Protects against API abuse and excessive AI API costs
+limiter = Limiter(
+    app=app,
+    key_func=get_remote_address,
+    default_limits=["200 per day", "50 per hour"],
+    storage_uri=os.environ.get('RATE_LIMIT_STORAGE_URI', 'memory://'),
+    strategy="fixed-window",
+    # Add headers to response
+    headers_enabled=True,
+    # Swallow errors in case of storage issues (fail open in dev, but log)
+    swallow_errors=FLASK_ENV == 'development'
+)
+logger.info(f"Rate limiting enabled: 200/day, 50/hour per IP")
+
+# Security headers configuration
+# Protects against XSS, clickjacking, and other web vulnerabilities
+if FLASK_ENV == 'production':
+    # Production: Strict security headers
+    csp = {
+        'default-src': "'self'",
+        'script-src': [
+            "'self'",
+            'https://cdn.jsdelivr.net',
+            'https://cdnjs.cloudflare.com',
+            "'unsafe-inline'"  # Needed for Mermaid.js
+        ],
+        'style-src': [
+            "'self'",
+            'https://cdnjs.cloudflare.com',
+            "'unsafe-inline'"
+        ],
+        'img-src': ["'self'", 'data:', 'https:'],
+        'font-src': ["'self'", 'https://cdnjs.cloudflare.com'],
+        'connect-src': ["'self'"],
+    }
+
+    Talisman(
+        app,
+        force_https=True,
+        strict_transport_security=True,
+        strict_transport_security_max_age=31536000,  # 1 year
+        content_security_policy=csp,
+        content_security_policy_nonce_in=['script-src'],
+        referrer_policy='strict-origin-when-cross-origin',
+        feature_policy={
+            'geolocation': "'none'",
+            'camera': "'none'",
+            'microphone': "'none'",
+        }
+    )
+    logger.info("Security headers enabled (Talisman) - Production mode")
+else:
+    # Development: Relaxed for local development
+    Talisman(
+        app,
+        force_https=False,
+        content_security_policy=False,  # Disable CSP in dev for easier debugging
+        strict_transport_security=False
+    )
+    logger.info("Security headers enabled (Talisman) - Development mode (relaxed)")
+
+# ==================== PROMETHEUS METRICS INITIALIZATION ====================
+if ENABLE_METRICS:
+    from prometheus_flask_exporter import PrometheusMetrics
+
+    # Initialize Prometheus metrics
+    metrics = PrometheusMetrics(app)
+
+    # Custom metrics
+    metrics.info('sailor_app_info', 'Sailor application info', version='2.0.0', environment=FLASK_ENV)
+
+    # Track AI API calls with custom counter
+    from prometheus_client import Counter, Histogram
+
+    ai_api_calls = Counter(
+        'sailor_ai_api_calls_total',
+        'Total AI API calls',
+        ['provider', 'status']
+    )
+
+    ai_api_duration = Histogram(
+        'sailor_ai_api_duration_seconds',
+        'AI API call duration',
+        ['provider']
+    )
+
+    mermaid_generation_requests = Counter(
+        'sailor_mermaid_generation_requests_total',
+        'Total Mermaid generation requests',
+        ['status']
+    )
+
+    logger.info("Prometheus metrics initialized at /metrics")
+else:
+    ai_api_calls = None
+    ai_api_duration = None
+    mermaid_generation_requests = None
 
 # OAuth setup
 oauth = OAuth(app)
@@ -113,9 +425,102 @@ gitGraph
 
 @app.route('/api/health', methods=['GET'])
 def health():
-    return jsonify({"status": "healthy"})
+    """Basic health check endpoint"""
+    return jsonify({
+        "status": "healthy",
+        "service": "sailor-backend",
+        "version": "2.0.0"
+    })
+
+@app.route('/api/health/detailed', methods=['GET'])
+def health_detailed():
+    """Detailed health check with dependency verification"""
+    health_status = {
+        "status": "healthy",
+        "service": "sailor-backend",
+        "version": "2.0.0",
+        "timestamp": time.time(),
+        "environment": FLASK_ENV,
+        "checks": {}
+    }
+
+    # Check Flask app
+    health_status["checks"]["flask"] = {
+        "status": "ok",
+        "message": "Flask application running"
+    }
+
+    # Check rate limiter
+    try:
+        # Try to access rate limiter storage
+        _ = limiter.storage
+        health_status["checks"]["rate_limiter"] = {
+            "status": "ok",
+            "message": "Rate limiter operational"
+        }
+    except Exception as e:
+        health_status["checks"]["rate_limiter"] = {
+            "status": "degraded",
+            "message": f"Rate limiter issue: {str(e)}"
+        }
+        health_status["status"] = "degraded"
+
+    # Check configuration
+    config_issues = []
+    if not SECRET_KEY or (FLASK_ENV == 'production' and len(SECRET_KEY) < 32):
+        config_issues.append("SECRET_KEY not properly configured")
+    if FLASK_ENV == 'production' and not CORS_ORIGINS:
+        config_issues.append("CORS_ORIGINS not set in production")
+
+    if config_issues:
+        health_status["checks"]["configuration"] = {
+            "status": "warning",
+            "issues": config_issues
+        }
+        if health_status["status"] == "healthy":
+            health_status["status"] = "degraded"
+    else:
+        health_status["checks"]["configuration"] = {
+            "status": "ok",
+            "message": "Configuration validated"
+        }
+
+    # Overall status
+    statuses = [check.get("status") for check in health_status["checks"].values()]
+    if "error" in statuses:
+        health_status["status"] = "unhealthy"
+        return jsonify(health_status), 503
+    elif "degraded" in statuses or "warning" in statuses:
+        health_status["status"] = "degraded"
+        return jsonify(health_status), 200
+    else:
+        return jsonify(health_status), 200
+
+@app.route('/api/health/live', methods=['GET'])
+def health_live():
+    """Liveness probe - is the app running?"""
+    return jsonify({"status": "alive"}), 200
+
+@app.route('/api/health/ready', methods=['GET'])
+def health_ready():
+    """Readiness probe - can the app serve requests?"""
+    # Check if critical dependencies are available
+    try:
+        # Verify app is configured
+        if not SECRET_KEY:
+            return jsonify({"status": "not ready", "reason": "SECRET_KEY not set"}), 503
+
+        return jsonify({"status": "ready"}), 200
+    except Exception as e:
+        return jsonify({"status": "not ready", "reason": str(e)}), 503
 
 @app.route('/api/validate-key', methods=['POST'])
+@limiter.limit("5 per minute")
+@validate_json(
+    required_fields=['api_key', 'provider'],
+    max_length={'api_key': 500, 'provider': 50}
+)
+@with_timeout(10)
 def validate_api_key():
     try:
         data = request.json
@@ -164,25 +569,39 @@ def validate_api_key():
         return jsonify({"valid": False, "error": "Unexpected error during validation"}), 500
 
 @app.route('/api/generate-mermaid', methods=['POST'])
+@limiter.limit("10 per minute;30 per hour;100 per day")
+@validate_json(
+    required_fields=['input'],
+    optional_fields=['api_key', 'provider'],
+    max_length={'input': 10000, 'api_key': 500, 'provider': 50}
+)
+@with_timeout(60)
 def generate_mermaid():
+    start_time = time.time()
+    provider = None
+
     try:
         data = request.json
         logger.debug(f"Received request data: {data}")
-        
+
         user_input = data.get('input', '')
         api_key = data.get('api_key', '')
         provider = data.get('provider', 'openai')
-        
+
         logger.info(f"Processing request - Provider: {provider}, Input length: {len(user_input)}, Has API key: {bool(api_key)}")
-        
+
         if not user_input:
             logger.warning("No input provided")
+            if mermaid_generation_requests:
+                mermaid_generation_requests.labels(status='error_no_input').inc()
             return jsonify({"error": "No input provided"}), 400
-        
+
         if not api_key and provider not in session.get('authenticated_providers', []):
             logger.warning("No API key or OAuth authentication")
+            if mermaid_generation_requests:
+                mermaid_generation_requests.labels(status='error_no_auth').inc()
             return jsonify({"error": "API key required or OAuth authentication needed"}), 401
-        
+
         try:
             if provider == 'openai':
                 logger.info("Generating with OpenAI")
@@ -192,18 +611,37 @@ def generate_mermaid():
                 response = generate_with_anthropic(user_input, api_key)
             else:
                 logger.error(f"Invalid provider: {provider}")
+                if mermaid_generation_requests:
+                    mermaid_generation_requests.labels(status='error_invalid_provider').inc()
                 return jsonify({"error": "Invalid provider"}), 400
-            
+
+            # Track successful generation
+            if ai_api_calls:
+                ai_api_calls.labels(provider=provider, status='success').inc()
+            if ai_api_duration:
+                ai_api_duration.labels(provider=provider).observe(time.time() - start_time)
+            if mermaid_generation_requests:
+                mermaid_generation_requests.labels(status='success').inc()
+
             logger.info("Successfully generated Mermaid code")
             return jsonify({
                 "mermaid_code": response,
                 "success": True
             })
         except Exception as e:
+            # Track failed API call
+            if ai_api_calls and provider:
+                ai_api_calls.labels(provider=provider, status='error').inc()
+            if mermaid_generation_requests:
+                mermaid_generation_requests.labels(status='error_generation').inc()
+
             logger.error(f"Error generating Mermaid code: {str(e)}")
             logger.error(traceback.format_exc())
             return jsonify({"error": str(e)}), 500
     except Exception as e:
+        if mermaid_generation_requests:
+            mermaid_generation_requests.labels(status='error_unexpected').inc()
+
         logger.error(f"Unexpected error in generate_mermaid: {str(e)}")
         logger.error(traceback.format_exc())
         return jsonify({"error": f"Unexpected error: {str(e)}"}), 500
@@ -233,11 +671,12 @@ Please provide only the Mermaid code without any explanation or markdown code bl
 
 def generate_with_anthropic(user_input, api_key):
     try:
-        logger.debug(f"Creating Anthropic client with API key: {api_key[:10]}..." if api_key else "No API key")
-        
+        # SECURITY: Never log API keys, even partially
+        logger.debug(f"Creating Anthropic client with API key: {'***set***' if api_key else 'not set'}")
+
         # Create client with only the api_key parameter
         client = Anthropic(api_key=api_key or session.get('anthropic_token'))
-        
+
         logger.debug("Anthropic client created successfully")
         
         prompt = f"""You are an expert in Mermaid diagram syntax. Based on the following user request, generate appropriate Mermaid diagram code.
