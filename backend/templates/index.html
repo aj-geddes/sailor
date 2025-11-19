@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sailor - Mermaid Diagram Generator</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <script src="https://cdn.jsdelivr.net/npm/mermaid@10.6.1/dist/mermaid.min.js"></script>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>Sailor Mermaid Diagram Generator</h1>
+            <p>Generate, validate, and render Mermaid diagrams</p>
+            <button id="darkModeToggle" class="dark-mode-toggle" title="Toggle dark mode">
+                <span class="dark-mode-icon">🌙</span>
+            </button>
+        </header>
+
+        <main>
+            <div class="toolbar">
+                <select id="diagramType">
+                    <option value="flowchart">Flowchart</option>
+                    <option value="sequence">Sequence Diagram</option>
+                    <option value="class">Class Diagram</option>
+                    <option value="state">State Diagram</option>
+                    <option value="gantt">Gantt Chart</option>
+                    <option value="pie">Pie Chart</option>
+                    <option value="erDiagram">ER Diagram</option>
+                </select>
+                
+                <select id="theme">
+                    <option value="default">Default</option>
+                    <option value="dark">Dark</option>
+                    <option value="forest">Forest</option>
+                    <option value="neutral">Neutral</option>
+                </select>
+                
+                <button id="configToggle" title="Mermaid Configuration">⚙️</button>
+
+                <button id="generateBtn" title="Generate diagram from description (Ctrl+G)">Generate from Description</button>
+                <button id="validateBtn" title="Validate Mermaid code (Ctrl+Enter)">Validate</button>
+                <button id="renderBtn" title="Render diagram to image">Render</button>
+            </div>
+
+            <div class="workspace">
+                <div class="input-panel">
+                    <div class="description-section">
+                        <h3>Natural Language Description</h3>
+                        <textarea id="description" placeholder="Describe your diagram in natural language..."></textarea>
+                    </div>
+                    
+                    <div class="code-section">
+                        <h3>Mermaid Code</h3>
+                        <textarea id="mermaidCode" placeholder="Enter Mermaid diagram code here..."></textarea>
+                    </div>
+                </div>
+
+                <div class="output-panel">
+                    <div class="preview-section">
+                        <h3>Preview</h3>
+                        <div id="preview"></div>
+                    </div>
+                    
+                    <div class="validation-section">
+                        <h3>Validation Results</h3>
+                        <div id="validationResults"></div>
+                    </div>
+                </div>
+            </div>
+        </main>
+        
+        <!-- Mermaid Configuration Panel -->
+        <div id="configPanel" class="config-panel">
+            <h3>Mermaid Configuration</h3>
+            <div class="config-group">
+                <label>Curve Style:</label>
+                <select id="curveStyle">
+                    <option value="basis">Basis (Smooth)</option>
+                    <option value="linear">Linear</option>
+                    <option value="cardinal">Cardinal</option>
+                    <option value="monotoneX">Monotone X</option>
+                    <option value="step">Step</option>
+                </select>
+            </div>
+            <div class="config-group">
+                <label>Flow Direction:</label>
+                <select id="flowDirection">
+                    <option value="TB">Top to Bottom</option>
+                    <option value="TD">Top Down</option>
+                    <option value="BT">Bottom to Top</option>
+                    <option value="RL">Right to Left</option>
+                    <option value="LR">Left to Right</option>
+                </select>
+            </div>
+            <div class="config-group">
+                <label>Node Spacing:</label>
+                <input type="range" id="nodeSpacing" min="30" max="100" value="50">
+                <span id="nodeSpacingValue">50</span>
+            </div>
+            <div class="config-group">
+                <label>Rank Spacing:</label>
+                <input type="range" id="rankSpacing" min="30" max="100" value="50">
+                <span id="rankSpacingValue">50</span>
+            </div>
+            <div class="config-group">
+                <label for="useMaxWidth">Use Max Width:</label>
+                <input type="checkbox" id="useMaxWidth" checked>
+            </div>
+            <button id="applyConfig" class="apply-config">Apply Configuration</button>
+            <button id="resetConfig" class="reset-config">Reset to Defaults</button>
+        </div>
+    </div>
+
+    <script src="{{ url_for('static', filename='js/app.js') }}"></script>
+</body>
+</html>

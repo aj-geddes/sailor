@@ -1,0 +1,46 @@
+# Jekyll configuration for Sailor example site
+title: "Sailor Documentation Example"
+description: "Example of using Sailor for automatic Mermaid diagram generation"
+baseurl: "/sailor-example"
+url: "https://yourusername.github.io"
+
+# Build settings
+markdown: kramdown
+theme: minima
+
+# Plugins
+plugins:
+  - jekyll-feed
+  - jekyll-seo-tag
+  - jekyll-sitemap
+
+# Exclude files
+exclude:
+  - Gemfile
+  - Gemfile.lock
+  - node_modules
+  - vendor/bundle/
+  - vendor/cache/
+  - vendor/gems/
+  - vendor/ruby/
+  - .sailor-cache/
+  - "*.mermaid.md"
+
+# Collections
+collections:
+  diagrams:
+    output: true
+    permalink: /diagrams/:name
+
+# Defaults
+defaults:
+  - scope:
+      path: ""
+      type: "pages"
+    values:
+      layout: "default"
+  - scope:
+      path: "_diagrams"
+      type: "diagrams"
+    values:
+      layout: "diagram"

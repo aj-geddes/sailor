@@ -1,0 +1,65 @@
+# Core MCP and async
+mcp-python>=0.1.0
+fastapi>=0.104.0
+uvicorn[standard]>=0.24.0
+httpx>=0.25.0
+
+# Mermaid rendering
+playwright>=1.40.0  # For rendering diagrams
+cairosvg>=2.7.0    # SVG to PNG conversion alternative
+
+# Frontend serving
+aiofiles>=23.0.0   # Async file serving
+python-multipart>=0.0.6  # File uploads
+
+# Real-time communication
+websockets>=12.0
+sse-starlette>=2.0.0  # Server-sent events
+
+# AI and NLP
+openai>=1.0.0      # OpenAI integration
+anthropic>=0.15.0  # Claude integration
+langchain>=0.1.0   # LLM orchestration
+tiktoken>=0.5.0    # Token counting
+
+# Diagram manipulation
+pydot>=2.0.0       # Graphviz integration
+networkx>=3.0      # Graph algorithms
+pyparsing>=3.1.0   # Parsing Mermaid syntax
+
+# UI/UX helpers
+pillow>=10.0.0     # Image processing
+qrcode>=7.4.0      # QR codes for sharing
+python-barcode>=0.15.0  # Barcodes
+
+# Storage and caching
+redis>=5.0.0       # Caching
+sqlalchemy>=2.0.0  # Database ORM
+alembic>=1.13.0    # Database migrations
+
+# Security
+python-jose[cryptography]>=3.3.0  # JWT tokens
+passlib[bcrypt]>=1.7.4  # Password hashing
+python-dotenv>=1.0.0  # Environment management
+
+# Development tools
+black>=23.0.0      # Code formatting
+ruff>=0.1.0        # Fast linting
+mypy>=1.0.0        # Type checking
+pytest>=7.0.0      # Testing
+pytest-asyncio>=0.21.0  # Async testing
+
+# Monitoring and logging
+structlog>=24.0.0  # Structured logging
+prometheus-client>=0.19.0  # Metrics
+sentry-sdk>=1.0.0  # Error tracking
+
+# Rich CLI output
+rich>=13.0.0       # Beautiful terminal output
+typer>=0.9.0       # CLI framework
+click>=8.1.0       # Command line interface
+
+# Data validation and serialization
+pydantic>=2.5.0    # Already included with FastAPI
+msgpack>=1.0.0     # Fast serialization
+orjson>=3.9.0      # Fast JSON

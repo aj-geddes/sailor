@@ -1,0 +1,82 @@
+site_name: Sailor MCP
+site_description: MCP server for generating and rendering Mermaid diagrams with AI assistance
+site_author: Sailor Site Team
+copyright: Copyright (c) 2024 Sailor Site Team
+
+theme:
+  name: material
+  palette:
+    scheme: slate
+    primary: indigo
+    accent: indigo
+  features:
+    - navigation.instant
+    - navigation.tracking
+    - navigation.expand
+    - navigation.indexes
+    - navigation.top
+    - content.code.annotate
+    - content.tabs.link
+    - search.highlight
+    - search.share
+    - search.suggest
+
+markdown_extensions:
+  - pymdownx.highlight
+  - pymdownx.superfences:
+      custom_fences:
+        - name: mermaid
+          class: mermaid
+          format: !!python/name:pymdownx.superfences.fence_code_format
+  - pymdownx.tabbed
+  - pymdownx.tasklist
+  - admonition
+  - attr_list
+  - def_list
+  - footnotes
+  - toc:
+      permalink: true
+      toc_depth: 3
+
+plugins:
+  - search
+  - mkdocstrings:
+      handlers:
+        python:
+          selection:
+            docstring_style: google
+  - git-revision-date-localized:
+      type: date
+  - minify:
+      minify_html: true
+
+extra:
+  version:
+    provider: mike
+  social:
+    - icon: fontawesome/brands/github
+      link: https://github.com/aj-geddes/sailor
+  analytics:
+    provider: google
+    property: G-PLACEHOLDER
+
+nav:
+  - Home: index.md
+  - Getting Started: getting-started.md
+  - Architecture: architecture.md
+  - Class Structure: class-structure.md
+  - Processes: processes.md
+  - Data Model: data-model.md
+  - API: 
+    - Overview: api/index.md
+    - Reference: api/reference.md
+    - Examples: api/examples.md
+    - Error Handling: api/errors.md
+    - Security: api/security.md
+    - Changelog: api/changelog.md
+  - Infrastructure: infrastructure.md
+  - Repository Structure: repository-structure.md
+  - CI/CD: ci-cd.md
+  - Safety & Compliance: safety-compliance.md
+  - Contributing: contributing.md
+  - Glossary: glossary.md

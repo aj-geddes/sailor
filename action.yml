@@ -1,0 +1,203 @@
+name: 'Sailor Mermaid Processor'
+description: 'Process Mermaid diagrams in markdown files for documentation-as-code pipelines'
+author: 'aj-geddes'
+branding:
+  icon: 'anchor'
+  color: 'blue'
+
+inputs:
+  source-dir:
+    description: 'Directory containing markdown files'
+    required: false
+    default: '.'
+  output-dir:
+    description: 'Directory for generated diagram images'
+    required: false
+    default: 'diagrams'
+  format:
+    description: 'Output format (png, svg, pdf)'
+    required: false
+    default: 'png'
+  theme:
+    description: 'Mermaid theme (default, dark, forest, neutral)'
+    required: false
+    default: 'default'
+  file-pattern:
+    description: 'Pattern for finding markdown files'
+    required: false
+    default: '**/*.md'
+  commit-changes:
+    description: 'Automatically commit generated diagrams'
+    required: false
+    default: 'true'
+  validate-only:
+    description: 'Only validate diagrams without generating images'
+    required: false
+    default: 'false'
+  fail-on-error:
+    description: 'Fail the action if any diagram has errors'
+    required: false
+    default: 'true'
+  transparent-background:
+    description: 'Generate images with transparent background'
+    required: false
+    default: 'false'
+
+outputs:
+  diagrams-processed:
+    description: 'Number of diagrams processed'
+    value: ${{ steps.process.outputs.processed }}
+  diagrams-failed:
+    description: 'Number of diagrams that failed'
+    value: ${{ steps.process.outputs.failed }}
+  output-path:
+    description: 'Path to generated diagrams'
+    value: ${{ steps.process.outputs.path }}
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Setup Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.11'
+      shell: bash
+      
+    - name: Cache Sailor dependencies
+      uses: actions/cache@v3
+      with:
+        path: |
+          ~/.cache/pip
+          ~/.cache/ms-playwright
+        key: ${{ runner.os }}-sailor-${{ hashFiles('**/requirements.txt') }}
+        restore-keys: |
+          ${{ runner.os }}-sailor-
+      shell: bash
+      
+    - name: Install Sailor and dependencies
+      run: |
+        echo "📦 Installing Sailor..."
+        pip install --upgrade pip
+        
+        # Install from PyPI (when published) or from source
+        if pip show sailor-mermaid >/dev/null 2>&1; then
+          echo "✅ Sailor already installed"
+        else
+          echo "📥 Installing Sailor from source..."
+          git clone https://github.com/aj-geddes/sailor.git /tmp/sailor
+          cd /tmp/sailor
+          pip install -e .
+        fi
+        
+        # Install Playwright browsers
+        echo "🌐 Installing Playwright browsers..."
+        playwright install chromium
+        playwright install-deps chromium
+      shell: bash
+      
+    - name: Process Mermaid diagrams
+      id: process
+      run: |
+        echo "🚀 Processing Mermaid diagrams..."
+        
+        # Set up variables
+        SOURCE_DIR="${{ inputs.source-dir }}"
+        OUTPUT_DIR="${{ inputs.output-dir }}"
+        FORMAT="${{ inputs.format }}"
+        THEME="${{ inputs.theme }}"
+        PATTERN="${{ inputs.file-pattern }}"
+        
+        # Create output directory
+        mkdir -p "$OUTPUT_DIR"
+        
+        # Build command
+        CMD="sailor-cli \"$SOURCE_DIR\" \"$OUTPUT_DIR\" --format $FORMAT --theme $THEME --pattern \"$PATTERN\""
+        
+        # Add optional flags
+        if [[ "${{ inputs.transparent-background }}" == "true" ]]; then
+          CMD="$CMD --transparent"
+        fi
+        
+        if [[ "${{ inputs.validate-only }}" == "true" ]]; then
+          CMD="$CMD --validate-only"
+        fi
+        
+        # Run Sailor CLI and capture output
+        OUTPUT=$(eval $CMD 2>&1) || EXIT_CODE=$?
+        echo "$OUTPUT"
+        
+        # Parse output for metrics
+        PROCESSED=$(echo "$OUTPUT" | grep -oP 'Diagrams processed: \K\d+' || echo "0")
+        FAILED=$(echo "$OUTPUT" | grep -oP 'Errors: \K\d+' || echo "0")
+        
+        # Set outputs
+        echo "processed=$PROCESSED" >> $GITHUB_OUTPUT
+        echo "failed=$FAILED" >> $GITHUB_OUTPUT
+        echo "path=$OUTPUT_DIR" >> $GITHUB_OUTPUT
+        
+        # Handle errors
+        if [[ "${{ inputs.fail-on-error }}" == "true" && "$FAILED" -gt 0 ]]; then
+          echo "❌ $FAILED diagram(s) failed to process"
+          exit 1
+        fi
+        
+        echo "✅ Successfully processed $PROCESSED diagrams"
+      shell: bash
+      
+    - name: Generate diagram index
+      if: inputs.validate-only == 'false'
+      run: |
+        echo "📄 Generating diagram index..."
+        
+        OUTPUT_DIR="${{ inputs.output-dir }}"
+        
+        # Create index.md with all diagrams
+        cat > "$OUTPUT_DIR/index.md" << 'EOF'
+        # Generated Mermaid Diagrams
+        
+        This page lists all Mermaid diagrams generated by Sailor.
+        
+        EOF
+        
+        # Add each diagram to index
+        find "$OUTPUT_DIR" -name "*.${{ inputs.format }}" -type f | sort | while read -r file; do
+          basename=$(basename "$file")
+          echo "## $basename" >> "$OUTPUT_DIR/index.md"
+          echo "" >> "$OUTPUT_DIR/index.md"
+          echo "![$basename](./$basename)" >> "$OUTPUT_DIR/index.md"
+          echo "" >> "$OUTPUT_DIR/index.md"
+        done
+        
+        echo "✅ Generated index at $OUTPUT_DIR/index.md"
+      shell: bash
+      
+    - name: Commit diagram changes
+      if: inputs.commit-changes == 'true' && inputs.validate-only == 'false' && github.event_name == 'push'
+      run: |
+        echo "💾 Committing diagram changes..."
+        
+        git config --local user.email "github-actions[bot]@users.noreply.github.com"
+        git config --local user.name "github-actions[bot]"
+        
+        # Add generated diagrams
+        git add "${{ inputs.output-dir }}"
+        
+        # Check if there are changes
+        if git diff --staged --quiet; then
+          echo "ℹ️ No diagram changes to commit"
+        else
+          # Create commit message with details
+          COMMIT_MSG="🤖 Update Mermaid diagrams
+        
+        Generated by Sailor Mermaid Processor
+        - Processed: ${{ steps.process.outputs.processed }} diagrams
+        - Format: ${{ inputs.format }}
+        - Theme: ${{ inputs.theme }}
+        
+        [skip ci]"
+          
+          git commit -m "$COMMIT_MSG"
+          git push
+          echo "✅ Committed diagram changes"
+        fi
+      shell: bash

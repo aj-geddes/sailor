@@ -5,7 +5,7 @@
   import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@10.6.1/dist/mermaid.esm.min.mjs';
 
   mermaid.initialize({
-    startOnLoad: true,
+    startOnLoad: false,
     theme: 'default',
     themeVariables: {
       primaryColor: '#0066cc',
@@ -36,6 +36,28 @@
       noteMargin: 10,
       messageMargin: 35
     }
+  });
+
+  // Process code blocks with language-mermaid class
+  document.addEventListener('DOMContentLoaded', async function() {
+    // Find all code blocks with class="language-mermaid"
+    const mermaidBlocks = document.querySelectorAll('code.language-mermaid');
+
+    mermaidBlocks.forEach((block, index) => {
+      // Create a div to hold the rendered diagram
+      const div = document.createElement('div');
+      div.className = 'mermaid';
+      div.textContent = block.textContent;
+      div.setAttribute('data-processed', 'false');
+
+      // Replace the code block's parent (pre) with the div
+      if (block.parentElement && block.parentElement.tagName === 'PRE') {
+        block.parentElement.parentElement.replaceChild(div, block.parentElement);
+      }
+    });
+
+    // Run mermaid to render all diagrams
+    await mermaid.run();
   });
 </script>
 
