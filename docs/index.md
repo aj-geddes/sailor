@@ -35,7 +35,7 @@ graph LR
 
 ## 🗺️ Documentation Navigator
 
-<div class="guide-card">
+<div class="guide-card" markdown="1">
 
 ### 🚀 Setup Guide
 **New to Sailor?** Start here for installation and initial configuration.
@@ -51,7 +51,7 @@ Topics covered:
 
 </div>
 
-<div class="guide-card">
+<div class="guide-card" markdown="1">
 
 ### 👨‍💼 Admin Guide
 **Managing Sailor?** Configuration, security, and user management.
@@ -67,7 +67,7 @@ Topics covered:
 
 </div>
 
-<div class="guide-card">
+<div class="guide-card" markdown="1">
 
 ### ⚙️ Operations Guide
 **Running in production?** Deployment, monitoring, and maintenance.
@@ -84,7 +84,7 @@ Topics covered:
 
 </div>
 
-<div class="guide-card">
+<div class="guide-card" markdown="1">
 
 ### 🔧 Troubleshooting Guide
 **Having issues?** Common problems and solutions.
