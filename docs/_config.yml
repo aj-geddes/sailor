@@ -1,0 +1,51 @@
+# Sailor Documentation - Jekyll Configuration
+
+title: Sailor Documentation
+description: Get a picture of your Mermaid! Comprehensive guide for the Sailor diagram generator.
+baseurl: "/sailor"
+url: "https://aj-geddes.github.io"
+
+# Theme configuration
+theme: jekyll-theme-cayman
+# Or use remote theme for more options
+# remote_theme: pages-themes/cayman@v0.2.0
+
+# Plugins
+plugins:
+  - jekyll-relative-links
+  - jekyll-optional-front-matter
+  - jekyll-readme-index
+  - jekyll-titles-from-headings
+  - jekyll-seo-tag
+
+# Markdown configuration
+markdown: kramdown
+kramdown:
+  input: GFM
+  syntax_highlighter: rouge
+  syntax_highlighter_opts:
+    default_lang: text
+
+# Enable Mermaid rendering
+mermaid:
+  enabled: true
+
+# Collections
+collections:
+  pages:
+    output: true
+    permalink: /:name
+
+# Exclude from build
+exclude:
+  - Gemfile
+  - Gemfile.lock
+  - node_modules
+  - vendor
+  - "*.gemspec"
+  - README.md
+  - GITHUB_PAGES_INTEGRATION.md
+
+# Sass configuration
+sass:
+  style: compressed

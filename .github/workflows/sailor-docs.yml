@@ -1,0 +1,146 @@
+name: 'Sailor: Process Mermaid Diagrams'
+description: 'Automatically generate diagram images from Mermaid code in your documentation'
+
+on:
+  push:
+    branches: [ main, master ]
+    paths:
+      - 'docs/**/*.md'
+      - '**/*.md'
+  pull_request:
+    branches: [ main, master ]
+    paths:
+      - 'docs/**/*.md'
+      - '**/*.md'
+  workflow_dispatch:
+
+jobs:
+  process-diagrams:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pages: write
+      id-token: write
+      
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          
+      - name: Setup Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+          
+      - name: Cache dependencies
+        uses: actions/cache@v3
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements.txt') }}
+          restore-keys: |
+            ${{ runner.os }}-pip-
+            
+      - name: Install Sailor CLI
+        run: |
+          pip install sailor-mermaid
+          # Or install from source:
+          # git clone https://github.com/aj-geddes/sailor.git
+          # cd sailor && pip install -e .
+          
+      - name: Install Playwright browsers
+        run: |
+          playwright install chromium
+          playwright install-deps
+          
+      - name: Process Mermaid diagrams
+        run: |
+          # Create output directory
+          mkdir -p docs/diagrams
+          
+          # Process all markdown files
+          sailor-cli . docs/diagrams \
+            --format png \
+            --theme default \
+            --pattern "**/*.md"
+            
+      - name: Validate generated diagrams
+        run: |
+          # Check that diagrams were generated
+          if [ -z "$(ls -A docs/diagrams)" ]; then
+            echo "❌ No diagrams were generated"
+            exit 1
+          fi
+          
+          # List generated files
+          echo "✅ Generated diagrams:"
+          find docs/diagrams -name "*.png" -type f | sort
+          
+      - name: Commit diagram changes
+        if: github.event_name == 'push'
+        run: |
+          git config --local user.email "action@github.com"
+          git config --local user.name "GitHub Action"
+          
+          # Add generated diagrams
+          git add docs/diagrams/
+          
+          # Check if there are changes
+          if git diff --staged --quiet; then
+            echo "No diagram changes to commit"
+          else
+            git commit -m "🤖 Update Mermaid diagrams [skip ci]"
+            git push
+          fi
+          
+      - name: Upload diagram artifacts
+        uses: actions/upload-artifact@v3
+        with:
+          name: mermaid-diagrams
+          path: docs/diagrams/
+          retention-days: 30
+
+  deploy-to-pages:
+    needs: process-diagrams
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
+    
+    permissions:
+      pages: write
+      id-token: write
+      
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+      
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        
+      - name: Download diagram artifacts
+        uses: actions/download-artifact@v3
+        with:
+          name: mermaid-diagrams
+          path: docs/diagrams/
+          
+      - name: Setup Ruby
+        uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: '3.0'
+          bundler-cache: true
+          working-directory: docs
+
+      - name: Build Jekyll site
+        run: |
+          cd docs
+          bundle install --jobs 4 --retry 3
+          JEKYLL_ENV=production bundle exec jekyll build --trace
+          
+      - name: Upload to GitHub Pages
+        uses: actions/upload-pages-artifact@v2
+        with:
+          path: docs/_site
+          
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v2

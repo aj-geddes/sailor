@@ -1,0 +1,47 @@
+<!-- Custom head content for Sailor documentation -->
+
+<!-- Mermaid.js for diagram rendering -->
+<script type="module">
+  import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.esm.min.mjs';
+
+  // Initialize Mermaid
+  mermaid.initialize({
+    startOnLoad: true,
+    theme: 'default',
+    securityLevel: 'loose',
+    logLevel: 'error',
+    flowchart: {
+      useMaxWidth: true,
+      htmlLabels: true,
+      curve: 'basis'
+    }
+  });
+
+  // Make mermaid globally available
+  window.mermaid = mermaid;
+
+  // Process all code blocks with language-mermaid class
+  document.addEventListener('DOMContentLoaded', function() {
+    // Find all code blocks with class="language-mermaid"
+    const mermaidBlocks = document.querySelectorAll('code.language-mermaid');
+
+    mermaidBlocks.forEach((block, index) => {
+      // Create a div to hold the rendered diagram
+      const div = document.createElement('div');
+      div.className = 'mermaid';
+      div.textContent = block.textContent;
+      div.id = `mermaid-diagram-${index}`;
+
+      // Replace the code block's parent (pre) with the div
+      if (block.parentElement && block.parentElement.tagName === 'PRE') {
+        block.parentElement.parentElement.replaceChild(div, block.parentElement);
+      }
+    });
+
+    // Re-run mermaid to render the new divs
+    mermaid.run();
+  });
+</script>
+
+<!-- Custom CSS for styling improvements -->
+<link rel="stylesheet" href="{{ '/assets/css/custom.css' | relative_url }}">
