@@ -1195,15 +1195,16 @@ def main_http():
     async def handle_health(request: Request) -> Response:
         return PlainTextResponse("OK")
 
-    # Get the FastMCP Starlette app (handles /mcp endpoint internally)
-    mcp_app = mcp.http_app(path="/mcp")
+    # Get the FastMCP Starlette app
+    # Don't pass path here - we'll mount it at /mcp in the parent app
+    mcp_app = mcp.http_app()
 
     # Create parent app with download routes + mounted MCP app
-    # Routes are matched in order - specific routes first, then MCP catchall
+    # Routes are matched in order - specific routes first, then MCP
     routes = [
         Route("/download/{file_id}.{format}", handle_download, methods=["GET"]),
         Route("/health", handle_health, methods=["GET"]),
-        Mount("/", app=mcp_app),  # Mount MCP at root, handles /mcp path
+        Mount("/mcp", app=mcp_app),  # Mount MCP at /mcp
     ]
 
     app = Starlette(routes=routes)
