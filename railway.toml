@@ -9,9 +9,11 @@ dockerfilePath = "Dockerfile.railway"
 # Number of instances (Railway handles scaling)
 numReplicas = 1
 
-# Health check configuration
-healthcheckPath = "/"
-healthcheckTimeout = 30
+# Disable HTTP health checks - MCP uses streamable HTTP protocol
+# which doesn't serve traditional HTTP endpoints
+# The Docker HEALTHCHECK handles container health instead
+healthcheckPath = ""
+healthcheckTimeout = 300
 
 # Restart policy
 restartPolicyType = "ON_FAILURE"
