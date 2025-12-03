@@ -98,8 +98,8 @@ EXPOSE 8000
 HEALTHCHECK --interval=30s --timeout=10s --start-period=30s --retries=3 \
     CMD python -c "import socket; s=socket.socket(); s.settimeout(5); s.connect(('localhost', int(__import__('os').environ.get('PORT', 8000)))); s.close()" || exit 1
 
-# Entry point - uses PORT env var from Railway
-ENTRYPOINT ["python", "-m", "sailor_mcp.server", "--http"]
+# Entry point - MCP_TRANSPORT=http env var triggers HTTP mode
+ENTRYPOINT ["python", "-m", "sailor_mcp.server"]
 
 # Default command (can be overridden)
 CMD []
