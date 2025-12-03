@@ -269,7 +269,7 @@ from starlette.requests import Request
 from starlette.responses import Response, PlainTextResponse
 
 
-@mcp.custom_route("/download/{file_id}.{format}", methods=["GET"])
+@mcp.custom_route("/mcp/download/{file_id}.{format}", methods=["GET"])
 async def download_file(request: Request) -> Response:
     """
     One-time download endpoint for rendered diagrams.
@@ -506,9 +506,9 @@ async def validate_and_render_mermaid(
             # Store in temp file store and generate download URL
             file_id = temp_file_store.store(decoded_data, img_format)
             if base_url:
-                download_urls[img_format] = f"{base_url}/download/{file_id}.{img_format}"
+                download_urls[img_format] = f"{base_url}/mcp/download/{file_id}.{img_format}"
             else:
-                download_urls[img_format] = f"/download/{file_id}.{img_format}"
+                download_urls[img_format] = f"/mcp/download/{file_id}.{img_format}"
             logger.info(f"Created one-time download URL for {img_format}: {file_id}")
 
         # Create response
