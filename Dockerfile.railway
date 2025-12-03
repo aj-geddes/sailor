@@ -60,9 +60,10 @@ RUN pip install --no-cache-dir /tmp/*.whl && \
     pip install --no-cache-dir "fastmcp[sse]>=0.5.0" && \
     rm -rf /tmp/*.whl /root/.cache/pip
 
-# Install Playwright and Chromium browser
-RUN playwright install chromium && \
-    # Clean up other browsers (only need chromium)
+# Install Playwright browsers (chromium + headless shell for rendering)
+RUN playwright install chromium --with-deps && \
+    playwright install chromium-headless-shell && \
+    # Clean up other browsers (only need chromium variants)
     rm -rf /root/.cache/ms-playwright/ffmpeg* \
            /root/.cache/ms-playwright/firefox* \
            /root/.cache/ms-playwright/webkit*
