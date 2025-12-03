@@ -211,7 +211,8 @@ async def validate_and_render_mermaid(
     fix_errors: bool = True,
     style: Dict[str, str] = None,
     format: str = "png",
-    client_id: str = "default"
+    client_id: str = "default",
+    output_path: str = None
 ) -> Dict[str, Any]:
     """Handle validation and rendering of Mermaid code"""
     global renderer
@@ -278,6 +279,30 @@ async def validate_and_render_mermaid(
         # Update success metrics
         metrics["successful_renders"] += 1
 
+        # Save to file if output_path is provided
+        saved_files = {}
+        if output_path:
+            import base64
+            for img_format, img_data in images.items():
+                # Determine file path
+                if img_format == "png":
+                    file_path = output_path if output_path.endswith('.png') else f"{output_path}.png"
+                elif img_format == "svg":
+                    file_path = output_path.replace('.png', '.svg') if output_path.endswith('.png') else f"{output_path}.svg"
+                else:
+                    file_path = f"{output_path}.{img_format}"
+
+                # Decode and write
+                try:
+                    decoded_data = base64.b64decode(img_data)
+                    with open(file_path, 'wb') as f:
+                        f.write(decoded_data)
+                    saved_files[img_format] = file_path
+                    logger.info(f"Saved {img_format} to {file_path}")
+                except Exception as e:
+                    logger.error(f"Failed to save {img_format} to {file_path}: {e}")
+                    saved_files[img_format] = f"Error: {str(e)}"
+
         # Create response
         result = {
             "valid": True,
@@ -288,6 +313,10 @@ async def validate_and_render_mermaid(
             "background": config.background,
             "images": images
         }
+
+        # Add saved file paths to result
+        if saved_files:
+            result["saved_files"] = saved_files
 
         if validation['warnings']:
             result["warnings"] = validation['warnings']
