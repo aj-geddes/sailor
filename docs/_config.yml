@@ -53,6 +53,9 @@ exclude:
   - DOCKER.md
   - PRODUCTION.md
   - archive/
+  - vendor/
+  - Gemfile
+  - Gemfile.lock
 
 # GitHub metadata
 github:
