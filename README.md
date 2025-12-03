@@ -110,6 +110,34 @@ Add the following to your Claude Desktop configuration file:
 
 Completely close and reopen Claude Desktop to load the new configuration.
 
+### Option C: Remote MCP Server ☁️
+
+Use Sailor without any local installation by connecting to a hosted MCP server.
+
+**Configure Claude Desktop** to use a remote Sailor instance:
+
+```json
+{
+  "mcpServers": {
+    "sailor-remote": {
+      "transport": {
+        "type": "streamable-http",
+        "url": "https://your-sailor-instance.up.railway.app/mcp"
+      }
+    }
+  }
+}
+```
+
+**Benefits of Remote MCP:**
+- No Docker or local installation required
+- Always available, runs 24/7
+- Automatic updates and maintenance
+- Works from any machine with Claude Desktop
+
+**Deploy Your Own:**
+See [Railway Deployment Guide](docs/RAILWAY_DEPLOYMENT.md) to host your own remote instance.
+
 ## 📖 Usage
 
 ### 🌐 Web Interface

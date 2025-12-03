@@ -15,6 +15,7 @@ Sailor is a powerful Mermaid diagram generator that combines a beautiful web int
 - 🎨 Generate diagrams using AI (OpenAI or Anthropic)
 - 🔄 Render Mermaid diagrams in real-time
 - 🤖 Integrate with Claude Desktop for natural language diagram creation
+- ☁️ Connect to remote MCP servers - no local installation required
 - 🐳 Deploy anywhere with Docker
 - ⚡ Leverage FastMCP's modern architecture
 
@@ -22,14 +23,17 @@ Sailor is a powerful Mermaid diagram generator that combines a beautiful web int
 graph LR
     A[User Request] --> B{Interface}
     B -->|Web UI| C[Flask Server]
-    B -->|Claude Desktop| D[MCP Server]
+    B -->|Claude Desktop| D[Local MCP]
+    B -->|Claude Desktop| R[Remote MCP]
     C --> E[AI Generation]
     D --> E
+    R --> E
     E --> F[Mermaid Renderer]
     F --> G[Beautiful Diagram]
 
     style A fill:#0066cc,stroke:#003366,stroke-width:2px,color:#fff
     style B fill:#1e90ff,stroke:#003366,stroke-width:2px,color:#fff
+    style R fill:#ff6b6b,stroke:#003366,stroke-width:2px,color:#fff
     style G fill:#20b2aa,stroke:#003366,stroke-width:2px,color:#fff
 ```
 

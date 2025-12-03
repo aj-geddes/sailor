@@ -14,6 +14,7 @@ This guide will help you install and configure Sailor for your first use. Follow
 - [Installation Methods](#installation-methods)
 - [Web Interface Setup](#web-interface-setup)
 - [Claude Desktop Integration](#claude-desktop-integration)
+- [Remote MCP Server](#remote-mcp-server)
 - [Verification](#verification)
 - [First Diagram](#first-diagram)
 - [Next Steps](#next-steps)
@@ -70,27 +71,29 @@ graph TD
 
 ## Installation Methods
 
-Sailor can be deployed in two primary modes:
+Sailor can be deployed in multiple modes:
 
 ```mermaid
 graph LR
-    A[Choose Deployment] --> B[Web Interface Only]
-    A --> C[Claude Desktop Integration]
-    A --> D[Both]
+    A[Choose Deployment] --> B[Web Interface]
+    A --> C[Local MCP]
+    A --> D[Remote MCP]
 
     B --> E[docker-compose up]
     C --> F[Docker build + Claude config]
-    D --> G[Full deployment]
+    D --> G[Just configure Claude Desktop]
 
     E --> H[Access via Browser]
     F --> I[Use via Claude Desktop]
-    G --> J[Both interfaces available]
+    G --> J[Use via Claude Desktop]
 
     style A fill:#0066cc,stroke:#003366,stroke-width:3px,color:#fff
     style B fill:#1e90ff,stroke:#003366,stroke-width:2px,color:#fff
     style C fill:#1e90ff,stroke:#003366,stroke-width:2px,color:#fff
-    style D fill:#20b2aa,stroke:#003366,stroke-width:2px,color:#fff
+    style D fill:#ff6b6b,stroke:#003366,stroke-width:2px,color:#fff
 ```
+
+> **Easiest Option**: [Remote MCP Server](#remote-mcp-server) requires no installation - just configure Claude Desktop!
 
 ---
 
@@ -283,6 +286,92 @@ Use sailor-mermaid to create a simple flowchart showing a login process
 
 ---
 
+## Remote MCP Server
+
+The easiest way to use Sailor with Claude Desktop - no Docker or local installation required!
+
+### Overview
+
+Connect Claude Desktop directly to a hosted Sailor MCP server:
+
+```mermaid
+graph LR
+    A[Claude Desktop] -->|Streamable HTTP| B[Remote Sailor MCP]
+    B --> C[Mermaid Renderer]
+    C --> D[PNG Images]
+    D --> A
+
+    style A fill:#0066cc,stroke:#003366,stroke-width:2px,color:#fff
+    style B fill:#ff6b6b,stroke:#003366,stroke-width:2px,color:#fff
+    style D fill:#20b2aa,stroke:#003366,stroke-width:2px,color:#fff
+```
+
+### Step 1: Get a Remote Server URL
+
+**Option A: Use a Public Instance**
+
+If a public Sailor instance is available, use its URL directly.
+
+**Option B: Deploy Your Own**
+
+Deploy Sailor to Railway, Render, or any cloud platform. See [Railway Deployment Guide](RAILWAY_DEPLOYMENT.html) for detailed instructions.
+
+### Step 2: Configure Claude Desktop
+
+Add the remote server to your Claude Desktop configuration:
+
+**Windows**: `%APPDATA%\Claude\claude_desktop_config.json`
+**macOS**: `~/Library/Application Support/Claude/claude_desktop_config.json`
+**Linux**: `~/.config/Claude/claude_desktop_config.json`
+
+```json
+{
+  "mcpServers": {
+    "sailor-remote": {
+      "transport": {
+        "type": "streamable-http",
+        "url": "https://your-sailor-instance.up.railway.app/mcp"
+      }
+    }
+  }
+}
+```
+
+> **Note**: Replace the URL with your actual Sailor instance URL.
+
+### Step 3: Restart Claude Desktop
+
+Close and reopen Claude Desktop to load the configuration.
+
+### Step 4: Start Creating Diagrams
+
+In Claude Desktop, try:
+```
+Use sailor-remote to create a flowchart showing a CI/CD pipeline
+```
+
+### Benefits of Remote MCP
+
+| Benefit | Description |
+|---------|-------------|
+| **No Installation** | No Docker, no local setup required |
+| **Always Available** | Server runs 24/7 in the cloud |
+| **Auto-Updates** | Server maintained separately from your local machine |
+| **Works Anywhere** | Use from any machine with Claude Desktop |
+| **Lower Resources** | No local rendering overhead |
+
+### Comparison: Local vs Remote MCP
+
+| Feature | Local MCP | Remote MCP |
+|---------|-----------|------------|
+| **Setup Time** | ~15 minutes | ~2 minutes |
+| **Docker Required** | Yes | No |
+| **Works Offline** | Yes | No |
+| **File Output** | Local directory | Base64 in response |
+| **Resource Usage** | Uses local CPU/RAM | Cloud-hosted |
+
+---
+
 ## Verification
 
 ### Health Check Commands
@@ -415,7 +504,8 @@ docker-compose ps
 | Service | Port | Access |
 |---------|------|--------|
 | Web Interface | 5000 | http://localhost:5000 |
-| MCP Server | stdio | Via Claude Desktop |
+| Local MCP Server | stdio | Via Claude Desktop |
+| Remote MCP Server | HTTPS | Via Claude Desktop (Streamable HTTP) |
 
 ### Configuration Files
 
