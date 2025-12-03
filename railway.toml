@@ -20,7 +20,8 @@ restartPolicyType = "ON_FAILURE"
 restartPolicyMaxRetries = 3
 
 # Explicit start command - overrides Procfile and Dockerfile CMD
-startCommand = "python -m sailor_mcp.server --host 0.0.0.0 --transport streamable-http"
+# Using http transport to enable custom routes (like /download endpoint)
+startCommand = "python -m sailor_mcp.server --host 0.0.0.0 --transport http"
 
 # Resource configuration (adjust based on plan)
 # Railway will set these based on your plan
@@ -29,7 +30,7 @@ startCommand = "python -m sailor_mcp.server --host 0.0.0.0 --transport streamabl
 # These can be overridden in Railway dashboard
 SAILOR_LOG_LEVEL = "INFO"
 MCP_TRANSPORT = "http"
-MCP_TRANSPORT_TYPE = "streamable-http"
+MCP_TRANSPORT_TYPE = "http"
 RATE_LIMIT_REQUESTS = "100"
 RATE_LIMIT_WINDOW = "60"
 RATE_LIMIT_RENDER = "20"
