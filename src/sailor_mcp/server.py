@@ -10,8 +10,12 @@ import asyncio
 import logging
 import os
 import time
+import uuid
+import tempfile
+import threading
 from collections import defaultdict
 from typing import List, Dict, Any, Optional
+from dataclasses import dataclass, field
 import json
 
 from fastmcp import FastMCP
@@ -106,6 +110,145 @@ class RateLimiter:
 # Global rate limiter instance
 rate_limiter = RateLimiter()
 
+
+# ==================== TEMP FILE STORE (One-Time Downloads) ====================
+
+@dataclass
+class TempFile:
+    """Metadata for a temporary download file"""
+    file_path: str
+    created_at: float
+    file_format: str
+    downloaded: bool = False
+
+
+class TempFileStore:
+    """
+    Manages temporary files for one-time downloads.
+    - Files are deleted after first download
+    - Files expire after 30 minutes
+    - Automatic cleanup runs periodically
+    """
+
+    EXPIRY_SECONDS = 30 * 60  # 30 minutes
+    CLEANUP_INTERVAL = 5 * 60  # Run cleanup every 5 minutes
+
+    def __init__(self):
+        self.files: Dict[str, TempFile] = {}
+        self.lock = threading.Lock()
+        self.temp_dir = tempfile.mkdtemp(prefix="sailor_")
+        self._start_cleanup_thread()
+        logger.info(f"TempFileStore initialized at {self.temp_dir}")
+
+    def _start_cleanup_thread(self):
+        """Start background thread to clean up expired files"""
+        def cleanup_loop():
+            while True:
+                time.sleep(self.CLEANUP_INTERVAL)
+                self._cleanup_expired()
+
+        thread = threading.Thread(target=cleanup_loop, daemon=True)
+        thread.start()
+
+    def _cleanup_expired(self):
+        """Remove expired files"""
+        now = time.time()
+        expired = []
+
+        with self.lock:
+            for file_id, temp_file in self.files.items():
+                if now - temp_file.created_at > self.EXPIRY_SECONDS:
+                    expired.append(file_id)
+
+            for file_id in expired:
+                self._delete_file(file_id)
+
+        if expired:
+            logger.info(f"Cleaned up {len(expired)} expired temp files")
+
+    def _delete_file(self, file_id: str):
+        """Delete a file (must hold lock)"""
+        if file_id in self.files:
+            temp_file = self.files[file_id]
+            try:
+                if os.path.exists(temp_file.file_path):
+                    os.remove(temp_file.file_path)
+            except Exception as e:
+                logger.error(f"Failed to delete temp file {file_id}: {e}")
+            del self.files[file_id]
+
+    def store(self, data: bytes, file_format: str = "png") -> str:
+        """
+        Store file data and return a unique download ID.
+        Returns the file_id (UUID) for the download URL.
+        """
+        file_id = str(uuid.uuid4())
+        file_path = os.path.join(self.temp_dir, f"{file_id}.{file_format}")
+
+        with open(file_path, 'wb') as f:
+            f.write(data)
+
+        with self.lock:
+            self.files[file_id] = TempFile(
+                file_path=file_path,
+                created_at=time.time(),
+                file_format=file_format
+            )
+
+        logger.info(f"Stored temp file {file_id} ({len(data)} bytes)")
+        return file_id
+
+    def retrieve(self, file_id: str) -> Optional[tuple[bytes, str]]:
+        """
+        Retrieve file data by ID. Returns (data, format) or None.
+        File is deleted after retrieval (one-time download).
+        """
+        with self.lock:
+            if file_id not in self.files:
+                return None
+
+            temp_file = self.files[file_id]
+
+            # Check if expired
+            if time.time() - temp_file.created_at > self.EXPIRY_SECONDS:
+                self._delete_file(file_id)
+                return None
+
+            # Check if already downloaded
+            if temp_file.downloaded:
+                self._delete_file(file_id)
+                return None
+
+            # Read file data
+            try:
+                with open(temp_file.file_path, 'rb') as f:
+                    data = f.read()
+                file_format = temp_file.file_format
+
+                # Mark as downloaded and delete
+                self._delete_file(file_id)
+
+                logger.info(f"Retrieved and deleted temp file {file_id}")
+                return data, file_format
+            except Exception as e:
+                logger.error(f"Failed to retrieve temp file {file_id}: {e}")
+                self._delete_file(file_id)
+                return None
+
+    def get_stats(self) -> Dict[str, Any]:
+        """Get current store statistics"""
+        with self.lock:
+            return {
+                "active_files": len(self.files),
+                "temp_directory": self.temp_dir,
+                "expiry_minutes": self.EXPIRY_SECONDS // 60,
+            }
+
+
+# Global temp file store instance
+temp_file_store = TempFileStore()
+
+
 # Request metrics
 metrics = {
     "total_requests": 0,
@@ -118,6 +261,57 @@ metrics = {
 # Global resources
 resources = MermaidResources()
 renderer = None
+
+
+# ==================== CUSTOM HTTP ROUTES ====================
+
+from starlette.requests import Request
+from starlette.responses import Response, PlainTextResponse
+
+
+@mcp.custom_route("/download/{file_id}.{format}", methods=["GET"])
+async def download_file(request: Request) -> Response:
+    """
+    One-time download endpoint for rendered diagrams.
+    Files are deleted after first download or after 30 minutes.
+    """
+    file_id = request.path_params.get("file_id", "")
+    file_format = request.path_params.get("format", "png")
+
+    # Validate file_id is a valid UUID format
+    try:
+        uuid.UUID(file_id)
+    except ValueError:
+        return PlainTextResponse("Invalid file ID", status_code=400)
+
+    # Retrieve and delete file (one-time download)
+    result = temp_file_store.retrieve(file_id)
+
+    if result is None:
+        return PlainTextResponse(
+            "File not found, expired, or already downloaded",
+            status_code=404
+        )
+
+    data, stored_format = result
+
+    # Set appropriate content type
+    content_types = {
+        "png": "image/png",
+        "svg": "image/svg+xml",
+        "pdf": "application/pdf",
+    }
+    content_type = content_types.get(stored_format, "application/octet-stream")
+
+    return Response(
+        content=data,
+        media_type=content_type,
+        headers={
+            "Content-Disposition": f'attachment; filename="diagram.{stored_format}"',
+            "Cache-Control": "no-store, no-cache, must-revalidate",
+        }
+    )
+
 
 # ==================== TOOLS ====================
 
@@ -140,6 +334,7 @@ async def health_check() -> Dict[str, Any]:
             "rate_limited": metrics["rate_limited"],
         },
         "rate_limiter": rate_limiter.get_stats(),
+        "temp_file_store": temp_file_store.get_stats(),
         "renderer_initialized": renderer is not None,
         "environment": {
             "host": HOST,
@@ -279,40 +474,44 @@ async def validate_and_render_mermaid(
         # Update success metrics
         metrics["successful_renders"] += 1
 
-        # Always save to disk - use output_path or default to current working directory
         import base64
-        import os
-        from datetime import datetime
 
         saved_files = {}
+        download_urls = {}
 
-        # Generate default filename if no output_path provided
-        if not output_path:
-            timestamp = datetime.now().strftime("%Y%m%d-%H%M%S")
-            diagram_type = validation['diagram_type'].replace(' ', '-').lower()
-            output_path = os.path.join(os.getcwd(), f"sailor-{diagram_type}-{timestamp}")
+        # Get base URL for download links (for remote deployment)
+        base_url = os.environ.get("SAILOR_BASE_URL", "").rstrip("/")
 
         for img_format, img_data in images.items():
-            # Determine file path
-            if img_format == "png":
-                file_path = output_path if output_path.endswith('.png') else f"{output_path}.png"
-            elif img_format == "svg":
-                file_path = output_path.replace('.png', '.svg') if output_path.endswith('.png') else f"{output_path}.svg"
+            decoded_data = base64.b64decode(img_data)
+
+            # If output_path provided, try to save locally
+            if output_path:
+                if img_format == "png":
+                    file_path = output_path if output_path.endswith('.png') else f"{output_path}.png"
+                elif img_format == "svg":
+                    file_path = output_path.replace('.png', '.svg') if output_path.endswith('.png') else f"{output_path}.svg"
+                else:
+                    file_path = f"{output_path}.{img_format}"
+
+                try:
+                    with open(file_path, 'wb') as f:
+                        f.write(decoded_data)
+                    saved_files[img_format] = file_path
+                    logger.info(f"Saved {img_format} to {file_path}")
+                    continue  # Successfully saved locally, skip temp store
+                except Exception as e:
+                    logger.warning(f"Could not save to {file_path}: {e} - using temp download instead")
+
+            # Store in temp file store and generate download URL
+            file_id = temp_file_store.store(decoded_data, img_format)
+            if base_url:
+                download_urls[img_format] = f"{base_url}/download/{file_id}.{img_format}"
             else:
-                file_path = f"{output_path}.{img_format}"
+                download_urls[img_format] = f"/download/{file_id}.{img_format}"
+            logger.info(f"Created one-time download URL for {img_format}: {file_id}")
 
-            # Decode and write
-            try:
-                decoded_data = base64.b64decode(img_data)
-                with open(file_path, 'wb') as f:
-                    f.write(decoded_data)
-                saved_files[img_format] = file_path
-                logger.info(f"Saved {img_format} to {file_path}")
-            except Exception as e:
-                logger.error(f"Failed to save {img_format} to {file_path}: {e}")
-                saved_files[img_format] = f"Error: {str(e)}"
-
-        # Create response - always return file paths, never base64
+        # Create response
         result = {
             "valid": True,
             "diagram_type": validation['diagram_type'],
@@ -320,8 +519,14 @@ async def validate_and_render_mermaid(
             "theme": config.theme,
             "style": config.look,
             "background": config.background,
-            "saved_files": saved_files,
         }
+
+        # Add file paths and/or download URLs
+        if saved_files:
+            result["saved_files"] = saved_files
+        if download_urls:
+            result["download_urls"] = download_urls
+            result["download_note"] = "One-time download links. URLs expire after 30 minutes or first download."
 
         if validation['warnings']:
             result["warnings"] = validation['warnings']
