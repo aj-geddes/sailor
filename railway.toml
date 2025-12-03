@@ -19,6 +19,9 @@ healthcheckTimeout = 300
 restartPolicyType = "ON_FAILURE"
 restartPolicyMaxRetries = 3
 
+# Explicit start command - overrides Procfile and Dockerfile CMD
+startCommand = "python -m sailor_mcp.server --http --host 0.0.0.0 --transport streamable-http"
+
 # Resource configuration (adjust based on plan)
 # Railway will set these based on your plan
 
