@@ -82,7 +82,7 @@ ENV PYTHONUNBUFFERED=1 \
     SAILOR_LOG_LEVEL=INFO \
     PLAYWRIGHT_BROWSERS_PATH=/home/sailor/.cache/ms-playwright \
     MCP_TRANSPORT=http \
-    MCP_TRANSPORT_TYPE=streamable-http \
+    MCP_TRANSPORT_TYPE=http \
     HOST=0.0.0.0
 
 # Railway will set the PORT environment variable

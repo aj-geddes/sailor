@@ -1121,19 +1121,21 @@ def main_http():
     )
     parser.add_argument(
         "--transport",
-        default=os.environ.get("MCP_TRANSPORT_TYPE", "streamable-http"),
-        choices=["streamable-http", "sse"],
-        help="Transport type (default: streamable-http)"
+        default=os.environ.get("MCP_TRANSPORT_TYPE", "http"),
+        choices=["http", "streamable-http", "sse"],
+        help="Transport type (default: http - enables custom routes like /download)"
     )
 
     args = parser.parse_args()
 
     # Map transport names to FastMCP transport values
+    # Note: "http" enables custom routes, "streamable-http" may not
     transport_map = {
+        "http": "http",
         "streamable-http": "streamable-http",
         "sse": "sse"
     }
-    transport = transport_map.get(args.transport, "streamable-http")
+    transport = transport_map.get(args.transport, "http")
 
     logger.info("=" * 60)
     logger.info("Sailor MCP Server v2.0.0 - Remote Mermaid Diagram Service")
