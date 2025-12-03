@@ -279,31 +279,40 @@ async def validate_and_render_mermaid(
         # Update success metrics
         metrics["successful_renders"] += 1
 
-        # Save to file if output_path is provided
+        # Always save to disk - use output_path or default to current working directory
+        import base64
+        import os
+        from datetime import datetime
+
         saved_files = {}
-        if output_path:
-            import base64
-            for img_format, img_data in images.items():
-                # Determine file path
-                if img_format == "png":
-                    file_path = output_path if output_path.endswith('.png') else f"{output_path}.png"
-                elif img_format == "svg":
-                    file_path = output_path.replace('.png', '.svg') if output_path.endswith('.png') else f"{output_path}.svg"
-                else:
-                    file_path = f"{output_path}.{img_format}"
 
-                # Decode and write
-                try:
-                    decoded_data = base64.b64decode(img_data)
-                    with open(file_path, 'wb') as f:
-                        f.write(decoded_data)
-                    saved_files[img_format] = file_path
-                    logger.info(f"Saved {img_format} to {file_path}")
-                except Exception as e:
-                    logger.error(f"Failed to save {img_format} to {file_path}: {e}")
-                    saved_files[img_format] = f"Error: {str(e)}"
+        # Generate default filename if no output_path provided
+        if not output_path:
+            timestamp = datetime.now().strftime("%Y%m%d-%H%M%S")
+            diagram_type = validation['diagram_type'].replace(' ', '-').lower()
+            output_path = os.path.join(os.getcwd(), f"sailor-{diagram_type}-{timestamp}")
 
-        # Create response
+        for img_format, img_data in images.items():
+            # Determine file path
+            if img_format == "png":
+                file_path = output_path if output_path.endswith('.png') else f"{output_path}.png"
+            elif img_format == "svg":
+                file_path = output_path.replace('.png', '.svg') if output_path.endswith('.png') else f"{output_path}.svg"
+            else:
+                file_path = f"{output_path}.{img_format}"
+
+            # Decode and write
+            try:
+                decoded_data = base64.b64decode(img_data)
+                with open(file_path, 'wb') as f:
+                    f.write(decoded_data)
+                saved_files[img_format] = file_path
+                logger.info(f"Saved {img_format} to {file_path}")
+            except Exception as e:
+                logger.error(f"Failed to save {img_format} to {file_path}: {e}")
+                saved_files[img_format] = f"Error: {str(e)}"
+
+        # Create response - always return file paths, never base64
         result = {
             "valid": True,
             "diagram_type": validation['diagram_type'],
@@ -311,16 +320,8 @@ async def validate_and_render_mermaid(
             "theme": config.theme,
             "style": config.look,
             "background": config.background,
+            "saved_files": saved_files,
         }
-
-        # If files were saved successfully, DON'T return base64 data (saves context)
-        # Only return the file paths instead
-        if saved_files:
-            result["saved_files"] = saved_files
-            result["note"] = "Images saved to disk. Base64 data omitted to reduce response size."
-        else:
-            # No output_path provided, return base64 images as before
-            result["images"] = images
 
         if validation['warnings']:
             result["warnings"] = validation['warnings']
