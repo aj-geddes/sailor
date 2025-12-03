@@ -1,0 +1,31 @@
+# Railway deployment configuration for Sailor MCP Server
+# https://docs.railway.app/reference/config-as-code
+
+[build]
+# Use Dockerfile for building
+dockerfilePath = "Dockerfile.railway"
+
+[deploy]
+# Number of instances (Railway handles scaling)
+numReplicas = 1
+
+# Health check configuration
+healthcheckPath = "/"
+healthcheckTimeout = 30
+
+# Restart policy
+restartPolicyType = "ON_FAILURE"
+restartPolicyMaxRetries = 3
+
+# Resource configuration (adjust based on plan)
+# Railway will set these based on your plan
+
+[deploy.env]
+# These can be overridden in Railway dashboard
+SAILOR_LOG_LEVEL = "INFO"
+MCP_TRANSPORT = "http"
+MCP_TRANSPORT_TYPE = "streamable-http"
+RATE_LIMIT_REQUESTS = "100"
+RATE_LIMIT_WINDOW = "60"
+RATE_LIMIT_RENDER = "20"
+PYTHONUNBUFFERED = "1"

@@ -1,6 +1,16 @@
-"""MCP Server implementation for Sailor Site using FastMCP"""
+"""MCP Server implementation for Sailor Site using FastMCP
+
+This server can be deployed remotely (e.g., Railway) and includes:
+- Environment-based configuration (PORT, HOST)
+- Health check endpoint for load balancers
+- Rate limiting to prevent abuse
+- Request tracking and metrics
+"""
 import asyncio
 import logging
+import os
+import time
+from collections import defaultdict
 from typing import List, Dict, Any, Optional
 import json
 
@@ -15,14 +25,137 @@ from .logging_config import get_logger
 # Get logger
 logger = get_logger(__name__)
 
+# Environment configuration
+PORT = int(os.environ.get("PORT", os.environ.get("MCP_PORT", "8000")))
+HOST = os.environ.get("HOST", os.environ.get("MCP_HOST", "0.0.0.0"))
+LOG_LEVEL = os.environ.get("SAILOR_LOG_LEVEL", "INFO")
+
+# Rate limiting configuration
+RATE_LIMIT_REQUESTS = int(os.environ.get("RATE_LIMIT_REQUESTS", "100"))  # requests per window
+RATE_LIMIT_WINDOW = int(os.environ.get("RATE_LIMIT_WINDOW", "60"))  # window in seconds
+RATE_LIMIT_RENDER = int(os.environ.get("RATE_LIMIT_RENDER", "20"))  # render requests per window (more expensive)
+
 # Create FastMCP server instance
 mcp = FastMCP("sailor-mermaid", version="2.0.0")
+
+
+# ==================== RATE LIMITING ====================
+
+class RateLimiter:
+    """Simple in-memory rate limiter for abuse protection"""
+
+    def __init__(self):
+        self.requests: Dict[str, List[float]] = defaultdict(list)
+        self.render_requests: Dict[str, List[float]] = defaultdict(list)
+
+    def _clean_old_requests(self, requests: List[float], window: int) -> List[float]:
+        """Remove requests outside the current window"""
+        cutoff = time.time() - window
+        return [r for r in requests if r > cutoff]
+
+    def check_rate_limit(self, client_id: str, is_render: bool = False) -> tuple[bool, str]:
+        """
+        Check if request is within rate limits.
+        Returns (allowed, message)
+        """
+        now = time.time()
+
+        # Clean and check general rate limit
+        self.requests[client_id] = self._clean_old_requests(
+            self.requests[client_id], RATE_LIMIT_WINDOW
+        )
+
+        if len(self.requests[client_id]) >= RATE_LIMIT_REQUESTS:
+            return False, f"Rate limit exceeded. Max {RATE_LIMIT_REQUESTS} requests per {RATE_LIMIT_WINDOW}s"
+
+        # For render requests, also check render-specific limit
+        if is_render:
+            self.render_requests[client_id] = self._clean_old_requests(
+                self.render_requests[client_id], RATE_LIMIT_WINDOW
+            )
+
+            if len(self.render_requests[client_id]) >= RATE_LIMIT_RENDER:
+                return False, f"Render rate limit exceeded. Max {RATE_LIMIT_RENDER} renders per {RATE_LIMIT_WINDOW}s"
+
+            self.render_requests[client_id].append(now)
+
+        self.requests[client_id].append(now)
+        return True, "OK"
+
+    def get_stats(self) -> Dict[str, Any]:
+        """Get current rate limiter statistics"""
+        now = time.time()
+        active_clients = 0
+        total_requests = 0
+
+        for client_id, requests in self.requests.items():
+            recent = [r for r in requests if r > now - RATE_LIMIT_WINDOW]
+            if recent:
+                active_clients += 1
+                total_requests += len(recent)
+
+        return {
+            "active_clients": active_clients,
+            "total_requests_in_window": total_requests,
+            "window_seconds": RATE_LIMIT_WINDOW,
+            "limit_per_client": RATE_LIMIT_REQUESTS,
+            "render_limit_per_client": RATE_LIMIT_RENDER,
+        }
+
+
+# Global rate limiter instance
+rate_limiter = RateLimiter()
+
+# Request metrics
+metrics = {
+    "total_requests": 0,
+    "successful_renders": 0,
+    "failed_renders": 0,
+    "rate_limited": 0,
+    "start_time": time.time(),
+}
 
 # Global resources
 resources = MermaidResources()
 renderer = None
 
 # ==================== TOOLS ====================
+
+# Tool: Health Check
+@mcp.tool(description="Check server health and get status information")
+async def health_check() -> Dict[str, Any]:
+    """Health check endpoint for load balancers and monitoring"""
+    global renderer
+
+    uptime = time.time() - metrics["start_time"]
+
+    health_status = {
+        "status": "healthy",
+        "version": "2.0.0",
+        "uptime_seconds": round(uptime, 2),
+        "metrics": {
+            "total_requests": metrics["total_requests"],
+            "successful_renders": metrics["successful_renders"],
+            "failed_renders": metrics["failed_renders"],
+            "rate_limited": metrics["rate_limited"],
+        },
+        "rate_limiter": rate_limiter.get_stats(),
+        "renderer_initialized": renderer is not None,
+        "environment": {
+            "host": HOST,
+            "port": PORT,
+        }
+    }
+
+    return health_status
+
+
+# Tool: Server Status (alias for external monitoring)
+@mcp.tool(description="Get detailed server status and metrics")
+async def server_status() -> Dict[str, Any]:
+    """Detailed server status for monitoring dashboards"""
+    return await health_check()
+
 
 # Tool: Request Mermaid Generation
 @mcp.tool(description="Request the calling LLM to generate Mermaid code based on requirements")
@@ -77,10 +210,25 @@ async def validate_and_render_mermaid(
     code: str,
     fix_errors: bool = True,
     style: Dict[str, str] = None,
-    format: str = "png"
+    format: str = "png",
+    client_id: str = "default"
 ) -> Dict[str, Any]:
     """Handle validation and rendering of Mermaid code"""
     global renderer
+
+    # Update metrics
+    metrics["total_requests"] += 1
+
+    # Check rate limit (render is expensive)
+    allowed, message = rate_limiter.check_rate_limit(client_id, is_render=True)
+    if not allowed:
+        metrics["rate_limited"] += 1
+        logger.warning(f"Rate limit exceeded for client {client_id}")
+        return {
+            "error": message,
+            "rate_limited": True,
+            "retry_after_seconds": RATE_LIMIT_WINDOW
+        }
 
     code = code.strip()
     style = style or {}
@@ -127,6 +275,9 @@ async def validate_and_render_mermaid(
 
         images = await renderer.render(code, config, format)
 
+        # Update success metrics
+        metrics["successful_renders"] += 1
+
         # Create response
         result = {
             "valid": True,
@@ -144,6 +295,8 @@ async def validate_and_render_mermaid(
         return result
 
     except Exception as e:
+        # Update failure metrics
+        metrics["failed_renders"] += 1
         logger.error(f"Rendering error: {e}", exc_info=True)
         return {
             "error": f"Rendering failed: {str(e)}\n\nCode was valid but could not be rendered.",
@@ -701,18 +854,58 @@ def main_stdio():
 
 
 def main_http():
-    """Entry point for HTTP/SSE transport (for setup.py console_scripts)"""
+    """Entry point for Streamable HTTP transport (for setup.py console_scripts)
+
+    Supports environment variables for Railway and other PaaS:
+    - PORT: Server port (Railway sets this automatically)
+    - HOST: Server host (default: 0.0.0.0)
+    - RATE_LIMIT_REQUESTS: Max requests per window (default: 100)
+    - RATE_LIMIT_WINDOW: Rate limit window in seconds (default: 60)
+    - RATE_LIMIT_RENDER: Max render requests per window (default: 20)
+    """
     import sys
     import argparse
 
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--host", default="0.0.0.0")
-    parser.add_argument("--port", type=int, default=8000)
+    parser = argparse.ArgumentParser(
+        description="Sailor MCP Server - Mermaid diagram generation via MCP protocol"
+    )
+    parser.add_argument(
+        "--host",
+        default=HOST,
+        help=f"Server host (default: {HOST}, or HOST env var)"
+    )
+    parser.add_argument(
+        "--port",
+        type=int,
+        default=PORT,
+        help=f"Server port (default: {PORT}, or PORT env var)"
+    )
+    parser.add_argument(
+        "--transport",
+        default=os.environ.get("MCP_TRANSPORT_TYPE", "streamable-http"),
+        choices=["streamable-http", "sse"],
+        help="Transport type (default: streamable-http)"
+    )
+
     args = parser.parse_args()
 
-    logger.info(f"Starting Sailor MCP Server (HTTP/SSE) on {args.host}:{args.port}...")
+    # Map transport names to FastMCP transport values
+    transport_map = {
+        "streamable-http": "streamable-http",
+        "sse": "sse"
+    }
+    transport = transport_map.get(args.transport, "streamable-http")
+
+    logger.info("=" * 60)
+    logger.info("Sailor MCP Server v2.0.0 - Remote Mermaid Diagram Service")
+    logger.info("=" * 60)
+    logger.info(f"Transport: {transport}")
+    logger.info(f"Listening: {args.host}:{args.port}")
+    logger.info(f"Rate Limits: {RATE_LIMIT_REQUESTS} req/{RATE_LIMIT_WINDOW}s, {RATE_LIMIT_RENDER} renders/{RATE_LIMIT_WINDOW}s")
     logger.info("Get a picture of your Mermaid! 🧜‍♀️")
-    mcp.run(transport="sse", host=args.host, port=args.port)
+    logger.info("=" * 60)
+
+    mcp.run(transport=transport, host=args.host, port=args.port)
 
 
 # ==================== MAIN ====================
@@ -720,21 +913,10 @@ def main_http():
 if __name__ == "__main__":
     import sys
 
-    # FastMCP handles both stdio and HTTP/SSE transports
-    if "--http" in sys.argv:
-        # Run with HTTP transport
-        import argparse
-        parser = argparse.ArgumentParser()
-        parser.add_argument("--http", action="store_true")
-        parser.add_argument("--host", default="0.0.0.0")
-        parser.add_argument("--port", type=int, default=8000)
-        args = parser.parse_args()
-
-        logger.info(f"Starting Sailor MCP Server (HTTP/SSE) on {args.host}:{args.port}...")
-        logger.info("Get a picture of your Mermaid! 🧜‍♀️")
-        mcp.run(transport="sse", host=args.host, port=args.port)
+    # Determine transport mode
+    if "--http" in sys.argv or os.environ.get("MCP_TRANSPORT") == "http":
+        # Use HTTP entry point (delegates to main_http)
+        main_http()
     else:
-        # Run with stdio transport (default)
-        logger.info("Starting Sailor MCP Server (stdio)...")
-        logger.info("Get a picture of your Mermaid! 🧜‍♀️")
-        mcp.run()
+        # Use stdio entry point (delegates to main_stdio)
+        main_stdio()

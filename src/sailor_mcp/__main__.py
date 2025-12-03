@@ -2,16 +2,24 @@
 
 This module serves as the main entry point when running:
     python -m sailor_mcp
+    python -m sailor_mcp --http  (for HTTP/Streamable HTTP transport)
 
-It replaces the complex stdio_wrapper.py with FastMCP's built-in transport handling.
+Transport modes:
+- stdio (default): For Claude Desktop integration
+- Streamable HTTP: For remote deployment (Railway, etc.)
+- SSE: For local development/testing
 """
 
-from .server_fastmcp import mcp
+import sys
+import os
+
+from .server import mcp, main_stdio, main_http
 
 if __name__ == "__main__":
-    # FastMCP handles all the stdio/HTTP transport complexity internally
-    # Simply call run() and it will:
-    # 1. Detect if running in stdio mode (for Claude Desktop)
-    # 2. Start HTTP server if specified
-    # 3. Handle all JSON-RPC protocol details
-    mcp.run()
+    # Determine transport mode based on args or environment
+    if "--http" in sys.argv or os.environ.get("MCP_TRANSPORT") == "http":
+        # Run with HTTP transport (Streamable HTTP by default)
+        main_http()
+    else:
+        # Run with stdio transport (default for Claude Desktop)
+        main_stdio()

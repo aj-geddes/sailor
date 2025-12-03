@@ -12,15 +12,26 @@ def read_requirements(filename):
     with open(filename, "r") as f:
         return [line.strip() for line in f if line.strip() and not line.startswith("#")]
 
-# Base requirements
+# Base requirements for MCP server
 install_requires = [
-    "playwright>=1.40.0",
+    # Core MCP
     "fastmcp>=0.5.0",
-    "asyncio",
-    "fastapi>=0.104.0",
+    "playwright>=1.40.0",
+    # HTTP/SSE transport
+    "starlette>=0.27.0",
+    "sse-starlette>=2.0.0",
     "uvicorn[standard]>=0.24.0",
     "httpx>=0.25.0",
-    "sse-starlette>=2.0.0",
+    # Data validation
+    "pydantic>=2.5.0",
+    # Rendering
+    "pillow>=10.0.0",
+    "cairosvg>=2.7.0",
+    # Async utilities
+    "aiofiles>=23.0.0",
+    # Utilities
+    "python-dotenv>=1.0.0",
+    "structlog>=24.0.0",
 ]
 
 # Development requirements

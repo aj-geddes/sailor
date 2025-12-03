@@ -84,7 +84,28 @@ docker-compose up --build
 
 # Build MCP Docker image for Claude Desktop
 docker build -f Dockerfile.mcp-stdio -t sailor-mcp .
+
+# Build for Railway deployment
+docker build -f Dockerfile.railway -t sailor-mcp-railway .
 ```
+
+### Railway Deployment
+
+```bash
+# Deploy to Railway (using Railway CLI)
+railway login
+railway init
+railway up
+
+# Or deploy from GitHub via Railway dashboard
+# See docs/RAILWAY_DEPLOYMENT.md for full guide
+```
+
+**Environment Variables for Remote Deployment:**
+- `PORT`: Set automatically by Railway
+- `RATE_LIMIT_REQUESTS`: Max requests per minute (default: 100)
+- `RATE_LIMIT_RENDER`: Max render requests per minute (default: 20)
+- `SAILOR_LOG_LEVEL`: Log level (default: INFO)
 
 ## FastMCP Architecture (v2.0+)
 

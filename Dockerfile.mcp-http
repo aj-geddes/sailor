@@ -52,18 +52,23 @@ USER sailor
 WORKDIR /home/sailor
 
 # Environment configuration
+# PORT can be overridden by Railway/Heroku/etc.
 ENV PYTHONUNBUFFERED=1 \
     SAILOR_LOG_LEVEL=INFO \
     PLAYWRIGHT_BROWSERS_PATH=/home/sailor/.cache/ms-playwright \
-    MCP_PORT=8000
+    MCP_PORT=8000 \
+    HOST=0.0.0.0 \
+    MCP_TRANSPORT=http
 
-# Expose default FastMCP HTTP port
+# Expose default port (can be overridden by PORT env var)
 EXPOSE 8000
 
 # Health check using socket connection test
-HEALTHCHECK --interval=30s --timeout=5s --start-period=15s --retries=3 \
-    CMD python -c "import socket; s=socket.socket(); s.connect(('localhost', 8000)); s.close()" || exit 1
+# Uses PORT env var if set, otherwise defaults to 8000
+HEALTHCHECK --interval=30s --timeout=10s --start-period=30s --retries=3 \
+    CMD python -c "import socket,os; p=int(os.environ.get('PORT',8000)); s=socket.socket(); s.settimeout(5); s.connect(('localhost',p)); s.close()" || exit 1
 
-# Use the new FastMCP HTTP entry point with production settings
+# Use the FastMCP HTTP entry point
+# The server reads PORT from environment if set
 ENTRYPOINT ["sailor-mcp-http"]
-CMD ["--host", "0.0.0.0", "--port", "8000"]
+CMD ["--host", "0.0.0.0"]
