@@ -263,57 +263,54 @@ resources = MermaidResources()
 renderer = None
 
 
-# ==================== CUSTOM HTTP ROUTES ====================
+# ==================== TOOLS ====================
 
-from starlette.requests import Request
-from starlette.responses import Response, PlainTextResponse
-
-
-@mcp.custom_route("/mcp/download/{file_id}.{format}", methods=["GET"])
-async def download_file(request: Request) -> Response:
+# Tool: Get Diagram (retrieve rendered image by ID)
+@mcp.tool(description="Retrieve a rendered diagram by its file ID. Returns base64-encoded image data. Use this after validate_and_render_mermaid to get the actual image.")
+async def get_diagram(
+    file_id: str,
+) -> Dict[str, Any]:
     """
-    One-time download endpoint for rendered diagrams.
-    Files are deleted after first download or after 30 minutes.
-    """
-    file_id = request.path_params.get("file_id", "")
-    file_format = request.path_params.get("format", "png")
+    Retrieve a rendered diagram by its file ID.
 
-    # Validate file_id is a valid UUID format
+    This is a one-time retrieval - the file is deleted after download.
+    Files expire after 30 minutes if not retrieved.
+
+    Args:
+        file_id: The UUID file ID returned by validate_and_render_mermaid
+
+    Returns:
+        Dictionary with image data (base64) and format, or error message
+    """
+    import base64
+
+    # Validate UUID format
     try:
         uuid.UUID(file_id)
     except ValueError:
-        return PlainTextResponse("Invalid file ID", status_code=400)
+        return {"error": "Invalid file ID format", "valid": False}
 
-    # Retrieve and delete file (one-time download)
+    # Retrieve the file (one-time, deletes after retrieval)
     result = temp_file_store.retrieve(file_id)
 
     if result is None:
-        return PlainTextResponse(
-            "File not found, expired, or already downloaded",
-            status_code=404
-        )
-
-    data, stored_format = result
-
-    # Set appropriate content type
-    content_types = {
-        "png": "image/png",
-        "svg": "image/svg+xml",
-        "pdf": "application/pdf",
-    }
-    content_type = content_types.get(stored_format, "application/octet-stream")
-
-    return Response(
-        content=data,
-        media_type=content_type,
-        headers={
-            "Content-Disposition": f'attachment; filename="diagram.{stored_format}"',
-            "Cache-Control": "no-store, no-cache, must-revalidate",
+        return {
+            "error": "File not found, expired, or already downloaded",
+            "valid": False,
+            "note": "Files expire after 30 minutes or after first retrieval"
         }
-    )
 
+    data, file_format = result
 
-# ==================== TOOLS ====================
+    # Return base64-encoded image
+    return {
+        "valid": True,
+        "format": file_format,
+        "image_base64": base64.b64encode(data).decode('utf-8'),
+        "size_bytes": len(data),
+        "note": "One-time retrieval - file has been deleted from server"
+    }
+
 
 # Tool: Health Check
 @mcp.tool(description="Check server health and get status information")
@@ -477,10 +474,7 @@ async def validate_and_render_mermaid(
         import base64
 
         saved_files = {}
-        download_urls = {}
-
-        # Get base URL for download links (for remote deployment)
-        base_url = os.environ.get("SAILOR_BASE_URL", "").rstrip("/")
+        file_ids = {}
 
         for img_format, img_data in images.items():
             decoded_data = base64.b64decode(img_data)
@@ -503,13 +497,10 @@ async def validate_and_render_mermaid(
                 except Exception as e:
                     logger.warning(f"Could not save to {file_path}: {e} - using temp download instead")
 
-            # Store in temp file store and generate download URL
+            # Store in temp file store and return file_id for retrieval via get_diagram tool
             file_id = temp_file_store.store(decoded_data, img_format)
-            if base_url:
-                download_urls[img_format] = f"{base_url}/mcp/download/{file_id}.{img_format}"
-            else:
-                download_urls[img_format] = f"/mcp/download/{file_id}.{img_format}"
-            logger.info(f"Created one-time download URL for {img_format}: {file_id}")
+            file_ids[img_format] = file_id
+            logger.info(f"Stored {img_format} with file_id: {file_id}")
 
         # Create response
         result = {
@@ -521,12 +512,12 @@ async def validate_and_render_mermaid(
             "background": config.background,
         }
 
-        # Add file paths and/or download URLs
+        # Add file paths (local) and/or file IDs (remote)
         if saved_files:
             result["saved_files"] = saved_files
-        if download_urls:
-            result["download_urls"] = download_urls
-            result["download_note"] = "One-time download links. URLs expire after 30 minutes or first download."
+        if file_ids:
+            result["file_ids"] = file_ids
+            result["retrieval_note"] = "Use get_diagram(file_id) to retrieve image data. Files expire after 30 minutes or first retrieval."
 
         if validation['warnings']:
             result["warnings"] = validation['warnings']
