@@ -60,21 +60,17 @@ RUN pip install --no-cache-dir /tmp/*.whl && \
     pip install --no-cache-dir "fastmcp[sse]>=0.5.0" && \
     rm -rf /tmp/*.whl /root/.cache/pip
 
-# Install Playwright browsers (chromium + headless shell for rendering)
-RUN playwright install chromium --with-deps && \
-    playwright install chromium-headless-shell && \
-    # Clean up other browsers (only need chromium variants)
-    rm -rf /root/.cache/ms-playwright/ffmpeg* \
-           /root/.cache/ms-playwright/firefox* \
-           /root/.cache/ms-playwright/webkit*
+# Install only the headless shell (smaller than full chromium)
+RUN playwright install chromium-headless-shell --with-deps
 
 # Create non-root user for security
 RUN useradd -m -u 1000 sailor && \
     mkdir -p /home/sailor/output && \
     chown -R sailor:sailor /home/sailor
 
-# Copy Playwright browsers to sailor user
-RUN cp -r /root/.cache/ms-playwright /home/sailor/.cache/ && \
+# Copy Playwright browsers to sailor user (ensure directory structure is correct)
+RUN mkdir -p /home/sailor/.cache/ms-playwright && \
+    cp -r /root/.cache/ms-playwright/* /home/sailor/.cache/ms-playwright/ && \
     chown -R sailor:sailor /home/sailor/.cache
 
 USER sailor
