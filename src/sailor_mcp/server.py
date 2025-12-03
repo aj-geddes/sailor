@@ -1146,7 +1146,69 @@ def main_http():
     logger.info("Get a picture of your Mermaid! 🧜‍♀️")
     logger.info("=" * 60)
 
-    mcp.run(transport=transport, host=args.host, port=args.port)
+    # Create a parent Starlette app that combines:
+    # 1. Download routes at root level (for one-time download URLs)
+    # 2. FastMCP app mounted under /mcp (for MCP protocol)
+    # This ensures Railway routes ALL HTTP traffic to our app
+    from starlette.applications import Starlette
+    from starlette.routing import Route, Mount
+    import uvicorn
+
+    # Download endpoint handler (standalone, not using @mcp.custom_route)
+    async def handle_download(request: Request) -> Response:
+        """One-time download endpoint for rendered diagrams."""
+        file_id = request.path_params.get("file_id", "")
+        file_format = request.path_params.get("format", "png")
+
+        # Validate UUID format
+        try:
+            uuid.UUID(file_id)
+        except ValueError:
+            return PlainTextResponse("Invalid file ID", status_code=400)
+
+        # Retrieve and delete file (one-time download)
+        result = temp_file_store.retrieve(file_id)
+        if result is None:
+            return PlainTextResponse(
+                "File not found, expired, or already downloaded",
+                status_code=404
+            )
+
+        data, stored_format = result
+        content_types = {
+            "png": "image/png",
+            "svg": "image/svg+xml",
+            "pdf": "application/pdf",
+        }
+        content_type = content_types.get(stored_format, "application/octet-stream")
+
+        return Response(
+            content=data,
+            media_type=content_type,
+            headers={
+                "Content-Disposition": f'attachment; filename="diagram.{stored_format}"',
+                "Cache-Control": "no-store, no-cache, must-revalidate",
+            }
+        )
+
+    # Health check endpoint
+    async def handle_health(request: Request) -> Response:
+        return PlainTextResponse("OK")
+
+    # Get the FastMCP Starlette app
+    mcp_app = mcp.http_app(path="/mcp", transport=transport)
+
+    # Create parent app with download routes + mounted MCP app
+    routes = [
+        Route("/download/{file_id}.{format}", handle_download, methods=["GET"]),
+        Route("/health", handle_health, methods=["GET"]),
+        Mount("/", app=mcp_app),  # Mount MCP at root, it will handle /mcp path
+    ]
+
+    app = Starlette(routes=routes)
+
+    # Run with uvicorn
+    uvicorn.run(app, host=args.host, port=args.port, log_level="info")
 
 
 # ==================== MAIN ====================
