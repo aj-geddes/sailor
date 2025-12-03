@@ -1195,19 +1195,21 @@ def main_http():
     async def handle_health(request: Request) -> Response:
         return PlainTextResponse("OK")
 
-    # Get the FastMCP Starlette app
-    mcp_app = mcp.http_app(path="/mcp", transport=transport)
+    # Get the FastMCP Starlette app (handles /mcp endpoint internally)
+    mcp_app = mcp.http_app(path="/mcp")
 
     # Create parent app with download routes + mounted MCP app
+    # Routes are matched in order - specific routes first, then MCP catchall
     routes = [
         Route("/download/{file_id}.{format}", handle_download, methods=["GET"]),
         Route("/health", handle_health, methods=["GET"]),
-        Mount("/", app=mcp_app),  # Mount MCP at root, it will handle /mcp path
+        Mount("/", app=mcp_app),  # Mount MCP at root, handles /mcp path
     ]
 
     app = Starlette(routes=routes)
 
     # Run with uvicorn
+    logger.info("Starting combined HTTP server with download routes + MCP")
     uvicorn.run(app, host=args.host, port=args.port, log_level="info")
 
 
