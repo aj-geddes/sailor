@@ -311,12 +311,16 @@ async def validate_and_render_mermaid(
             "theme": config.theme,
             "style": config.look,
             "background": config.background,
-            "images": images
         }
 
-        # Add saved file paths to result
+        # If files were saved successfully, DON'T return base64 data (saves context)
+        # Only return the file paths instead
         if saved_files:
             result["saved_files"] = saved_files
+            result["note"] = "Images saved to disk. Base64 data omitted to reduce response size."
+        else:
+            # No output_path provided, return base64 images as before
+            result["images"] = images
 
         if validation['warnings']:
             result["warnings"] = validation['warnings']
