@@ -38,6 +38,8 @@ Sailor combines a beautiful web interface with an MCP (Model Context Protocol) s
 - 🐳 **Fully Containerized**: No dependencies needed except Docker
 - ⚡ **FastMCP Architecture**: Modern, maintainable codebase with decorators
 
+![Sailor Architecture](docs/images/sailor-architecture.png)
+
 ## 🚀 Quick Start
 
 Choose your preferred way to use Sailor:
