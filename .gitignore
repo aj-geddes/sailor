@@ -51,6 +51,10 @@ coverage.xml
 *.svg
 output/
 
+# But keep documentation images
+!docs/images/*.png
+!docs/images/*.svg
+
 # Environment variables
 .env
 .env.local
