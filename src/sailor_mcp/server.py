@@ -14,11 +14,12 @@ import uuid
 import tempfile
 import threading
 from collections import defaultdict
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any, Optional, Union
 from dataclasses import dataclass, field
 import json
 
 from fastmcp import FastMCP
+from fastmcp.utilities.types import Image
 
 from .validators import MermaidValidator
 from .renderer import MermaidRenderer, MermaidConfig, get_renderer, cleanup_renderer
@@ -266,10 +267,10 @@ renderer = None
 # ==================== TOOLS ====================
 
 # Tool: Get Diagram (retrieve rendered image by ID)
-@mcp.tool(description="Retrieve a rendered diagram by its file ID. Returns base64-encoded image data. Use this after validate_and_render_mermaid to get the actual image.")
+@mcp.tool(description="Retrieve a rendered diagram by its file ID. Returns the image directly. Use this after validate_and_render_mermaid to get the actual image.")
 async def get_diagram(
     file_id: str,
-) -> Dict[str, Any]:
+) -> Image:
     """
     Retrieve a rendered diagram by its file ID.
 
@@ -280,36 +281,28 @@ async def get_diagram(
         file_id: The UUID file ID returned by validate_and_render_mermaid
 
     Returns:
-        Dictionary with image data (base64) and format, or error message
-    """
-    import base64
+        Image object that FastMCP converts to MCP ImageContent
 
+    Raises:
+        ValueError: If file_id is invalid or file not found/expired
+    """
     # Validate UUID format
     try:
         uuid.UUID(file_id)
     except ValueError:
-        return {"error": "Invalid file ID format", "valid": False}
+        raise ValueError("Invalid file ID format")
 
     # Retrieve the file (one-time, deletes after retrieval)
     result = temp_file_store.retrieve(file_id)
 
     if result is None:
-        return {
-            "error": "File not found, expired, or already downloaded",
-            "valid": False,
-            "note": "Files expire after 30 minutes or after first retrieval"
-        }
+        raise ValueError("File not found, expired, or already downloaded. Files expire after 30 minutes or after first retrieval.")
 
     data, file_format = result
+    logger.info(f"Returning image via FastMCP Image class: {len(data)} bytes, format={file_format}")
 
-    # Return base64-encoded image
-    return {
-        "valid": True,
-        "format": file_format,
-        "image_base64": base64.b64encode(data).decode('utf-8'),
-        "size_bytes": len(data),
-        "note": "One-time retrieval - file has been deleted from server"
-    }
+    # Return Image directly - FastMCP handles conversion to MCP ImageContent
+    return Image(data=data, format=file_format)
 
 
 # Tool: Health Check
@@ -397,16 +390,31 @@ Please respond with ONLY the Mermaid code, no explanations or markdown blocks.""
 
 
 # Tool: Validate and Render Mermaid
-@mcp.tool(description="Validate Mermaid code and render it as an image if valid")
+@mcp.tool(description="Validate Mermaid code and render it as an image if valid. Set return_image=true to get the image directly instead of a file_id.")
 async def validate_and_render_mermaid(
     code: str,
     fix_errors: bool = True,
     style: Dict[str, str] = None,
     format: str = "png",
     client_id: str = "default",
-    output_path: str = None
-) -> Dict[str, Any]:
-    """Handle validation and rendering of Mermaid code"""
+    output_path: str = None,
+    return_image: bool = False
+) -> Union[Image, Dict[str, Any]]:
+    """Handle validation and rendering of Mermaid code.
+
+    Args:
+        code: Mermaid diagram code to validate and render
+        fix_errors: Whether to attempt automatic error correction
+        style: Style options (theme, look, background)
+        format: Output format (png, svg)
+        client_id: Client identifier for rate limiting
+        output_path: Optional local path to save the image
+        return_image: If True, returns Image directly; if False, returns file_id for get_diagram()
+
+    Returns:
+        If return_image=True: Image object (FastMCP converts to MCP ImageContent)
+        If return_image=False: Dict with file_ids for retrieval via get_diagram()
+    """
     global renderer
 
     # Update metrics
@@ -473,6 +481,16 @@ async def validate_and_render_mermaid(
 
         import base64
 
+        # If return_image=True, return the primary format image directly
+        if return_image:
+            # Get the primary format (requested format, or first available)
+            primary_format = format if format in images else next(iter(images.keys()))
+            img_data = images[primary_format]
+            decoded_data = base64.b64decode(img_data)
+            logger.info(f"Returning image directly via FastMCP Image class: {len(decoded_data)} bytes, format={primary_format}")
+            return Image(data=decoded_data, format=primary_format)
+
+        # Otherwise, use the file_id workflow
         saved_files = {}
         file_ids = {}
 
