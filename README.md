@@ -2,7 +2,7 @@
 
 [![Docker](https://img.shields.io/badge/docker-%230db7ed.svg?style=for-the-badge&logo=docker&logoColor=white)](https://www.docker.com/)
 [![Python](https://img.shields.io/badge/python-3670A0?style=for-the-badge&logo=python&logoColor=ffdd54)](https://www.python.org/)
-[![FastMCP](https://img.shields.io/badge/FastMCP-0.5+-blue?style=for-the-badge)](https://github.com/jlowin/fastmcp)
+[![FastMCP](https://img.shields.io/badge/FastMCP-2.0+-blue?style=for-the-badge)](https://github.com/jlowin/fastmcp)
 [![Version](https://img.shields.io/badge/version-2.0.0-green?style=for-the-badge)](https://github.com/aj-geddes/sailor)
 [![Claude Desktop](https://img.shields.io/badge/Claude%20Desktop-Compatible-orange?style=for-the-badge)](https://claude.ai)
 [![Flask](https://img.shields.io/badge/flask-%23000.svg?style=for-the-badge&logo=flask&logoColor=white)](https://flask.palletsprojects.com/)
@@ -19,6 +19,13 @@ Sailor combines a beautiful web interface with an MCP (Model Context Protocol) s
 - **Better Type Safety**: Native Python type hints throughout
 - **Cleaner API**: Simple `@mcp.tool()` and `@mcp.prompt()` decorators
 - **Dual Transport Support**: Built-in stdio and HTTP/SSE transports
+- **Direct Image Returns**: Use `return_image=true` to get images inline without file downloads
+
+## 🏗️ Architecture
+
+![Sailor Architecture](docs/images/sailor-architecture.png)
+
+Sailor provides **11 tools**, **11 prompts**, and a comprehensive resource library for Mermaid diagram generation.
 
 ## ✨ Features
 
@@ -163,14 +170,58 @@ Images are automatically saved to your configured output directory.
 
 ## 🛠️ Available Tools
 
-### 1. `request_mermaid_generation`
-Request AI to generate Mermaid diagram code based on your description.
+### Rendering Tools
+| Tool | Description |
+|------|-------------|
+| `validate_and_render_mermaid` | Validate and render Mermaid code as an image. Use `return_image=true` for direct image return. |
+| `get_diagram` | Retrieve a rendered diagram by file ID (returns image directly via FastMCP Image class) |
+| `request_mermaid_generation` | Request AI to generate Mermaid diagram code based on your description |
 
-### 2. `validate_and_render_mermaid`
-Validate and render existing Mermaid code as an image.
+### Help & Examples Tools
+| Tool | Description |
+|------|-------------|
+| `get_mermaid_examples` | Get examples of different Mermaid diagram types by category or complexity |
+| `get_diagram_template` | Get customizable templates for quick diagram generation |
+| `get_syntax_help` | Get syntax reference and help for specific diagram types |
 
-### 3. `get_mermaid_examples`
-Get examples of different Mermaid diagram types.
+### Analysis Tools
+| Tool | Description |
+|------|-------------|
+| `analyze_diagram_code` | Analyze Mermaid code and provide improvement suggestions |
+| `suggest_diagram_improvements` | Get targeted suggestions for improving existing diagrams |
+
+### Status Tools
+| Tool | Description |
+|------|-------------|
+| `health_check` | Check server health and get status information |
+| `server_status` | Get detailed server status and metrics |
+
+## 💬 Available Prompts
+
+Interactive wizards to help you create diagrams through guided conversations:
+
+### Flow & Process Diagrams
+| Prompt | Description |
+|--------|-------------|
+| `flowchart_wizard` | Interactive wizard to create flowchart diagrams |
+| `sequence_diagram_wizard` | Guide for creating sequence diagrams |
+| `state_diagram_wizard` | Create state machine diagrams for system behavior |
+| `troubleshooting_flowchart` | Create diagnostic and troubleshooting flowcharts |
+
+### Data & Structure Diagrams
+| Prompt | Description |
+|--------|-------------|
+| `er_diagram_wizard` | Design entity-relationship diagrams for databases |
+| `class_diagram_wizard` | Create class diagrams for object-oriented design |
+| `architecture_diagram` | Create system architecture diagrams |
+
+### Visualization Diagrams
+| Prompt | Description |
+|--------|-------------|
+| `data_visualization` | Create charts and data visualizations |
+| `project_timeline` | Create Gantt charts for project planning |
+| `mindmap_wizard` | Create mindmaps for brainstorming and concept organization |
+| `user_journey_wizard` | Map customer or user journeys |
 
 ## 🎨 Styling Options
 

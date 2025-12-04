@@ -2,11 +2,18 @@
 
 This directory contains comprehensive documentation for the Sailor Mermaid diagram generator.
 
+## Architecture Overview
+
+![Sailor Architecture](images/sailor-architecture.png)
+
+Sailor provides **11 tools**, **11 prompts**, and a comprehensive resource library for Mermaid diagram generation.
+
 ## Documentation Structure
 
 ### Main Documentation
 - **[DOCKER.md](DOCKER.md)** - Docker deployment guide, container configuration, and best practices
 - **[PRODUCTION.md](PRODUCTION.md)** - Production deployment checklist, security hardening, and monitoring setup
+- **[RAILWAY_DEPLOYMENT.md](RAILWAY_DEPLOYMENT.md)** - Deploy Sailor as a remote MCP server on Railway
 
 ### Archive
 Documentation from previous development phases is archived for reference:

@@ -17,7 +17,7 @@ Sailor is a Mermaid diagram generator that combines a web interface with an MCP 
 
 ```bash
 # Install FastMCP framework
-pip install fastmcp>=0.5.0
+pip install fastmcp>=2.0.0
 
 # Install development dependencies
 pip install -r requirements-dev.txt
@@ -130,10 +130,16 @@ The project follows a dual-server architecture:
 
 ### Key Integration Points
 
-- **MCP Protocol**: The server implements MCP tools that Claude Desktop can invoke:
+- **MCP Protocol**: The server implements 11 MCP tools that Claude Desktop can invoke:
+  - `validate_and_render_mermaid`: Validate and render Mermaid code (use `return_image=True` for direct image return)
+  - `get_diagram`: Retrieve rendered diagram by file ID (returns FastMCP Image directly)
   - `request_mermaid_generation`: Generate Mermaid code from descriptions
-  - `validate_and_render_mermaid`: Validate and render existing Mermaid code
   - `get_mermaid_examples`: Retrieve example diagrams
+  - `get_diagram_template`: Get customizable templates
+  - `get_syntax_help`: Get syntax reference for diagram types
+  - `analyze_diagram_code`: Analyze and suggest improvements
+  - `suggest_diagram_improvements`: Get targeted improvement suggestions
+  - `health_check` / `server_status`: Server monitoring
 
 - **Rendering Pipeline**: 
   1. Mermaid code validation (`validators.py`)
@@ -170,16 +176,31 @@ The codebase implements comprehensive error handling:
 
 #### Tool Definition
 ```python
-# Simple decorator-based tool definition
+from fastmcp import FastMCP
+from fastmcp.utilities.types import Image
+from typing import Dict, Any, Union
+
+mcp = FastMCP("sailor-mermaid")
+
+# Tool with direct Image return support
 @mcp.tool(description="Validate and render Mermaid code")
 async def validate_and_render_mermaid(
     code: str,
     fix_errors: bool = True,
     style: Dict[str, str] = None,
-    format: str = "png"
-) -> Dict[str, Any]:
-    # Tool implementation
-    pass
+    format: str = "png",
+    return_image: bool = False  # New: return Image directly
+) -> Union[Image, Dict[str, Any]]:
+    # When return_image=True, return FastMCP Image directly
+    if return_image:
+        return Image(data=png_bytes, format="png")
+    # Otherwise return file_id for get_diagram() retrieval
+    return {"file_ids": {"png": file_id}}
+
+# Tool that always returns Image
+@mcp.tool(description="Retrieve rendered diagram by file ID")
+async def get_diagram(file_id: str) -> Image:
+    return Image(data=image_bytes, format="png")
 ```
 
 #### Prompt Definition
