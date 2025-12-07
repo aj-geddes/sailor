@@ -173,9 +173,18 @@ Images are automatically saved to your configured output directory.
 ### Rendering Tools
 | Tool | Description |
 |------|-------------|
-| `validate_and_render_mermaid` | Validate and render Mermaid code as an image. Use `return_image=true` for direct image return. |
-| `get_diagram` | Retrieve a rendered diagram by file ID (returns image directly via FastMCP Image class) |
+| `validate_and_render_mermaid` | Validate and render Mermaid code as an image. Options: `return_image=true` for inline display, `return_base64_text=true` for saveable base64 |
+| `get_diagram` | Retrieve a rendered diagram by file ID. Use `as_base64_text=true` to get saveable base64 |
 | `request_mermaid_generation` | Request AI to generate Mermaid diagram code based on your description |
+
+### Saving Images Locally (Remote Server)
+
+When using Sailor via a remote MCP server (like Railway), the server cannot write to your local filesystem. Use `return_base64_text=true` to get the image as extractable base64:
+
+```bash
+# The response includes base64_data which you can save via:
+echo "<base64_data>" | base64 -d > diagram.png
+```
 
 ### Help & Examples Tools
 | Tool | Description |
