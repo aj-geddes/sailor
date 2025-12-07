@@ -267,10 +267,11 @@ renderer = None
 # ==================== TOOLS ====================
 
 # Tool: Get Diagram (retrieve rendered image by ID)
-@mcp.tool(description="Retrieve a rendered diagram by its file ID. Returns the image directly. Use this after validate_and_render_mermaid to get the actual image.")
+@mcp.tool(description="Retrieve a rendered diagram by its file ID. Returns image directly for display, or set as_base64_text=true to get extractable base64 for saving locally via bash.")
 async def get_diagram(
     file_id: str,
-) -> Image:
+    as_base64_text: bool = False
+) -> Union[Image, Dict[str, Any]]:
     """
     Retrieve a rendered diagram by its file ID.
 
@@ -279,13 +280,19 @@ async def get_diagram(
 
     Args:
         file_id: The UUID file ID returned by validate_and_render_mermaid
+        as_base64_text: If True, returns base64 as extractable text instead of Image.
+                        Use this when you need to save the file locally via bash:
+                        echo "<base64_data>" | base64 -d > diagram.png
 
     Returns:
-        Image object that FastMCP converts to MCP ImageContent
+        If as_base64_text=False: Image object (displays inline)
+        If as_base64_text=True: Dict with base64_data string for saving via bash
 
     Raises:
         ValueError: If file_id is invalid or file not found/expired
     """
+    import base64 as b64
+
     # Validate UUID format
     try:
         uuid.UUID(file_id)
@@ -299,6 +306,19 @@ async def get_diagram(
         raise ValueError("File not found, expired, or already downloaded. Files expire after 30 minutes or after first retrieval.")
 
     data, file_format = result
+
+    # If as_base64_text=True, return extractable base64 string
+    if as_base64_text:
+        base64_str = b64.b64encode(data).decode('utf-8')
+        logger.info(f"Returning base64 text: {len(base64_str)} chars, format={file_format}")
+        return {
+            "base64_data": base64_str,
+            "base64_format": file_format,
+            "base64_length": len(base64_str),
+            "file_size_bytes": len(data),
+            "save_instruction": f'To save this image, run: echo "<base64_data>" | base64 -d > diagram.{file_format}'
+        }
+
     logger.info(f"Returning image via FastMCP Image class: {len(data)} bytes, format={file_format}")
 
     # Return Image directly - FastMCP handles conversion to MCP ImageContent
@@ -390,7 +410,7 @@ Please respond with ONLY the Mermaid code, no explanations or markdown blocks.""
 
 
 # Tool: Validate and Render Mermaid
-@mcp.tool(description="Validate Mermaid code and render it as an image if valid. Set return_image=true to get the image directly instead of a file_id.")
+@mcp.tool(description="Validate Mermaid code and render it as an image if valid. Set return_image=true for inline display, or return_base64_text=true to get extractable base64 string for saving locally.")
 async def validate_and_render_mermaid(
     code: str,
     fix_errors: bool = True,
@@ -398,7 +418,8 @@ async def validate_and_render_mermaid(
     format: str = "png",
     client_id: str = "default",
     output_path: str = None,
-    return_image: bool = False
+    return_image: bool = False,
+    return_base64_text: bool = False
 ) -> Union[Image, Dict[str, Any]]:
     """Handle validation and rendering of Mermaid code.
 
@@ -408,12 +429,14 @@ async def validate_and_render_mermaid(
         style: Style options (theme, look, background)
         format: Output format (png, svg)
         client_id: Client identifier for rate limiting
-        output_path: Optional local path to save the image
-        return_image: If True, returns Image directly; if False, returns file_id for get_diagram()
+        output_path: Optional local path to save the image (server-side only)
+        return_image: If True, returns Image directly for inline display
+        return_base64_text: If True, returns base64 as extractable text string (for LLM to save via bash)
 
     Returns:
         If return_image=True: Image object (FastMCP converts to MCP ImageContent)
-        If return_image=False: Dict with file_ids for retrieval via get_diagram()
+        If return_base64_text=True: Dict with base64_data string that can be piped to file
+        Otherwise: Dict with file_ids for retrieval via get_diagram()
     """
     global renderer
 
@@ -489,6 +512,22 @@ async def validate_and_render_mermaid(
             decoded_data = base64.b64decode(img_data)
             logger.info(f"Returning image directly via FastMCP Image class: {len(decoded_data)} bytes, format={primary_format}")
             return Image(data=decoded_data, format=primary_format)
+
+        # If return_base64_text=True, return base64 as extractable text string
+        # This allows the LLM to save the image locally via: echo "base64..." | base64 -d > file.png
+        if return_base64_text:
+            primary_format = format if format in images else next(iter(images.keys()))
+            img_data = images[primary_format]  # Already base64 encoded from renderer
+            logger.info(f"Returning base64 text: {len(img_data)} chars, format={primary_format}")
+            return {
+                "valid": True,
+                "diagram_type": validation['diagram_type'],
+                "base64_data": img_data,
+                "base64_format": primary_format,
+                "base64_length": len(img_data),
+                "save_command": f'echo "{img_data}" | base64 -d > diagram.{primary_format}',
+                "note": "Use the base64_data with: echo \"<base64_data>\" | base64 -d > filename.png"
+            }
 
         # Otherwise, use the file_id workflow
         saved_files = {}
