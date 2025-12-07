@@ -20,6 +20,7 @@ import json
 
 from fastmcp import FastMCP
 from fastmcp.utilities.types import Image
+from mcp.types import Annotations, ImageContent
 
 from .validators import MermaidValidator
 from .renderer import MermaidRenderer, MermaidConfig, get_renderer, cleanup_renderer
@@ -264,14 +265,153 @@ resources = MermaidResources()
 renderer = None
 
 
+# ==================== HELPER FUNCTIONS ====================
+
+def create_annotated_image(image_data: bytes, format: str) -> ImageContent:
+    """
+    Create an ImageContent with annotations marking it as user-display-only.
+    This hints to MCP clients that the image should be shown to the user
+    but does NOT need to be included in the LLM's context window.
+
+    Args:
+        image_data: Raw image bytes
+        format: Image format (png, svg, etc.)
+
+    Returns:
+        ImageContent with user-only annotations
+    """
+    img = Image(data=image_data, format=format)
+    annotations = Annotations(
+        audience=["user"],  # Display to user only, not for LLM processing
+        priority=0.0        # Lowest priority for context window inclusion
+    )
+    return img.to_image_content(annotations=annotations)
+
+
+def _get_example_code() -> Dict[str, str]:
+    """Get example Mermaid code for different diagram types"""
+    return {
+        "flowchart": """graph TD
+    A[Start] --> B{Is it working?}
+    B -->|Yes| C[Great!]
+    B -->|No| D[Debug]
+    D --> E[Fix issues]
+    E --> B
+    C --> F[Deploy]""",
+
+        "sequence": """sequenceDiagram
+    participant User
+    participant Frontend
+    participant Backend
+    participant Database
+
+    User->>Frontend: Submit form
+    Frontend->>Backend: POST /api/data
+    Backend->>Database: INSERT query
+    Database-->>Backend: Success
+    Backend-->>Frontend: 200 OK
+    Frontend-->>User: Show success""",
+
+        "gantt": """gantt
+    title Project Schedule
+    dateFormat YYYY-MM-DD
+    section Planning
+    Requirements :done, req, 2024-01-01, 7d
+    Design :done, design, after req, 10d
+    section Development
+    Backend :active, backend, 2024-01-20, 20d
+    Frontend :frontend, after backend, 15d
+    section Testing
+    Unit tests :test1, 2024-02-15, 10d
+    Integration :test2, after test1, 7d""",
+
+        "class": """classDiagram
+    class User {
+        -String id
+        -String email
+        +String name
+        +login(password)
+        +logout()
+    }
+    class Admin {
+        +String role
+        +manageUsers()
+    }
+    class Customer {
+        -String customerId
+        +placeOrder()
+        +viewOrders()
+    }
+    User <|-- Admin
+    User <|-- Customer""",
+
+        "state": """stateDiagram-v2
+    [*] --> Idle
+    Idle --> Processing : Start
+    Processing --> Success : Complete
+    Processing --> Error : Fail
+    Success --> [*]
+    Error --> Idle : Retry
+    Error --> [*] : Give up""",
+
+        "er": """erDiagram
+    CUSTOMER ||--o{ ORDER : places
+    ORDER ||--|{ LINE-ITEM : contains
+    CUSTOMER {
+        string id PK
+        string name
+        string email UK
+    }
+    ORDER {
+        string id PK
+        date orderDate
+        string customerId FK
+    }
+    LINE-ITEM {
+        string id PK
+        number quantity
+        number price
+        string orderId FK
+        string productId FK
+    }""",
+
+        "pie": """pie title Browser Usage Stats
+    "Chrome" : 65
+    "Firefox" : 20
+    "Safari" : 10
+    "Edge" : 5""",
+
+        "mindmap": """mindmap
+  root((Sailor Site))
+    Features
+      AI Generation
+        OpenAI
+        Anthropic
+      Live Preview
+      Style Controls
+        Themes
+        Looks
+          Classic
+          HandDrawn
+    Benefits
+      No API needed
+      Professional diagrams
+      Easy to use
+    Use Cases
+      Documentation
+      Architecture
+      Planning"""
+    }
+
+
 # ==================== TOOLS ====================
 
 # Tool: Get Diagram (retrieve rendered image by ID)
-@mcp.tool(description="Retrieve a rendered diagram by its file ID. Returns image directly for display, or set as_base64_text=true to get extractable base64 for saving locally via bash.")
+@mcp.tool(description="Retrieve a rendered diagram by its file ID. Returns image directly for display (with user-only annotations to minimize context usage), or set as_base64_text=true to get extractable base64 for saving locally via bash.")
 async def get_diagram(
     file_id: str,
     as_base64_text: bool = False
-) -> Union[Image, Dict[str, Any]]:
+) -> Union[ImageContent, Dict[str, Any]]:
     """
     Retrieve a rendered diagram by its file ID.
 
@@ -285,7 +425,7 @@ async def get_diagram(
                         echo "<base64_data>" | base64 -d > diagram.png
 
     Returns:
-        If as_base64_text=False: Image object (displays inline)
+        If as_base64_text=False: ImageContent with user-only annotations (displays inline, minimal context usage)
         If as_base64_text=True: Dict with base64_data string for saving via bash
 
     Raises:
@@ -319,10 +459,10 @@ async def get_diagram(
             "save_instruction": f'To save this image, run: echo "<base64_data>" | base64 -d > diagram.{file_format}'
         }
 
-    logger.info(f"Returning image via FastMCP Image class: {len(data)} bytes, format={file_format}")
+    logger.info(f"Returning annotated image (user-only): {len(data)} bytes, format={file_format}")
 
-    # Return Image directly - FastMCP handles conversion to MCP ImageContent
-    return Image(data=data, format=file_format)
+    # Return annotated ImageContent - marks image as user-display-only to minimize context usage
+    return create_annotated_image(data, file_format)
 
 
 # Tool: Health Check
@@ -410,7 +550,7 @@ Please respond with ONLY the Mermaid code, no explanations or markdown blocks.""
 
 
 # Tool: Validate and Render Mermaid
-@mcp.tool(description="Validate Mermaid code and render it as an image if valid. Set return_image=true for inline display, or return_base64_text=true to get extractable base64 string for saving locally.")
+@mcp.tool(description="Validate Mermaid code and render it as an image if valid. Set return_image=true for inline display (with user-only annotations to minimize context usage), or return_base64_text=true to get extractable base64 string for saving locally.")
 async def validate_and_render_mermaid(
     code: str,
     fix_errors: bool = True,
@@ -420,7 +560,7 @@ async def validate_and_render_mermaid(
     output_path: str = None,
     return_image: bool = False,
     return_base64_text: bool = False
-) -> Union[Image, Dict[str, Any]]:
+) -> Union[ImageContent, Dict[str, Any]]:
     """Handle validation and rendering of Mermaid code.
 
     Args:
@@ -430,11 +570,11 @@ async def validate_and_render_mermaid(
         format: Output format (png, svg)
         client_id: Client identifier for rate limiting
         output_path: Optional local path to save the image (server-side only)
-        return_image: If True, returns Image directly for inline display
+        return_image: If True, returns ImageContent with user-only annotations (minimal context usage)
         return_base64_text: If True, returns base64 as extractable text string (for LLM to save via bash)
 
     Returns:
-        If return_image=True: Image object (FastMCP converts to MCP ImageContent)
+        If return_image=True: ImageContent with user-only annotations (displays inline, minimal context usage)
         If return_base64_text=True: Dict with base64_data string that can be piped to file
         Otherwise: Dict with file_ids for retrieval via get_diagram()
     """
@@ -504,14 +644,14 @@ async def validate_and_render_mermaid(
 
         import base64
 
-        # If return_image=True, return the primary format image directly
+        # If return_image=True, return the primary format image with user-only annotations
         if return_image:
             # Get the primary format (requested format, or first available)
             primary_format = format if format in images else next(iter(images.keys()))
             img_data = images[primary_format]
             decoded_data = base64.b64decode(img_data)
-            logger.info(f"Returning image directly via FastMCP Image class: {len(decoded_data)} bytes, format={primary_format}")
-            return Image(data=decoded_data, format=primary_format)
+            logger.info(f"Returning annotated image (user-only): {len(decoded_data)} bytes, format={primary_format}")
+            return create_annotated_image(decoded_data, primary_format)
 
         # If return_base64_text=True, return base64 as extractable text string
         # This allows the LLM to save the image locally via: echo "base64..." | base64 -d > file.png
@@ -1011,124 +1151,6 @@ async def troubleshooting_flowchart(problem_area: str = "System Issue", complexi
    Example: "Reset password → Verify email → Login again"
 
 Provide these details for a comprehensive troubleshooting guide."""
-
-
-# ==================== HELPER FUNCTIONS ====================
-
-def _get_example_code() -> Dict[str, str]:
-    """Get example Mermaid code for different diagram types"""
-    return {
-        "flowchart": """graph TD
-    A[Start] --> B{Is it working?}
-    B -->|Yes| C[Great!]
-    B -->|No| D[Debug]
-    D --> E[Fix issues]
-    E --> B
-    C --> F[Deploy]""",
-
-        "sequence": """sequenceDiagram
-    participant User
-    participant Frontend
-    participant Backend
-    participant Database
-
-    User->>Frontend: Submit form
-    Frontend->>Backend: POST /api/data
-    Backend->>Database: INSERT query
-    Database-->>Backend: Success
-    Backend-->>Frontend: 200 OK
-    Frontend-->>User: Show success""",
-
-        "gantt": """gantt
-    title Project Schedule
-    dateFormat YYYY-MM-DD
-    section Planning
-    Requirements :done, req, 2024-01-01, 7d
-    Design :done, design, after req, 10d
-    section Development
-    Backend :active, backend, 2024-01-20, 20d
-    Frontend :frontend, after backend, 15d
-    section Testing
-    Unit tests :test1, 2024-02-15, 10d
-    Integration :test2, after test1, 7d""",
-
-        "class": """classDiagram
-    class User {
-        -String id
-        -String email
-        +String name
-        +login(password)
-        +logout()
-    }
-    class Admin {
-        +String role
-        +manageUsers()
-    }
-    class Customer {
-        -String customerId
-        +placeOrder()
-        +viewOrders()
-    }
-    User <|-- Admin
-    User <|-- Customer""",
-
-        "state": """stateDiagram-v2
-    [*] --> Idle
-    Idle --> Processing : Start
-    Processing --> Success : Complete
-    Processing --> Error : Fail
-    Success --> [*]
-    Error --> Idle : Retry
-    Error --> [*] : Give up""",
-
-        "er": """erDiagram
-    CUSTOMER ||--o{ ORDER : places
-    ORDER ||--|{ LINE-ITEM : contains
-    CUSTOMER {
-        string id PK
-        string name
-        string email UK
-    }
-    ORDER {
-        string id PK
-        date orderDate
-        string customerId FK
-    }
-    LINE-ITEM {
-        string id PK
-        number quantity
-        number price
-        string orderId FK
-        string productId FK
-    }""",
-
-        "pie": """pie title Browser Usage Stats
-    "Chrome" : 65
-    "Firefox" : 20
-    "Safari" : 10
-    "Edge" : 5""",
-
-        "mindmap": """mindmap
-  root((Sailor Site))
-    Features
-      AI Generation
-        OpenAI
-        Anthropic
-      Live Preview
-      Style Controls
-        Themes
-        Looks
-          Classic
-          HandDrawn
-    Benefits
-      No API needed
-      Professional diagrams
-      Easy to use
-    Use Cases
-      Documentation
-      Architecture
-      Planning"""
-    }
 
 
 # ==================== ENTRY POINTS ====================
