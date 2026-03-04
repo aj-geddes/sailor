@@ -424,6 +424,7 @@ gitGraph
 """
 
 @app.route('/api/health', methods=['GET'])
+@limiter.exempt
 def health():
     """Basic health check endpoint"""
     return jsonify({
@@ -433,6 +434,7 @@ def health():
     })
 
 @app.route('/api/health/detailed', methods=['GET'])
+@limiter.exempt
 def health_detailed():
     """Detailed health check with dependency verification"""
     health_status = {
@@ -497,11 +499,13 @@ def health_detailed():
         return jsonify(health_status), 200
 
 @app.route('/api/health/live', methods=['GET'])
+@limiter.exempt
 def health_live():
     """Liveness probe - is the app running?"""
     return jsonify({"status": "alive"}), 200
 
 @app.route('/api/health/ready', methods=['GET'])
+@limiter.exempt
 def health_ready():
     """Readiness probe - can the app serve requests?"""
     # Check if critical dependencies are available
@@ -562,7 +566,7 @@ def validate_api_key():
             if "authentication" in error_msg.lower() or "unauthorized" in error_msg.lower():
                 return jsonify({"valid": False, "error": "Invalid API key"})
             else:
-                return jsonify({"valid": False, "error": f"Validation error: {str(e)}"})
+                return jsonify({"valid": False, "error": "Could not validate API key. Please check your key and try again."})
                 
     except Exception as e:
         logger.error(f"Unexpected error in validate_api_key: {str(e)}")
@@ -628,7 +632,7 @@ def generate_mermaid():
                 "mermaid_code": response,
                 "success": True
             })
-        except Exception as e:
+        except ValueError as e:
             # Track failed API call
             if ai_api_calls and provider:
                 ai_api_calls.labels(provider=provider, status='error').inc()
@@ -638,13 +642,23 @@ def generate_mermaid():
             logger.error(f"Error generating Mermaid code: {str(e)}")
             logger.error(traceback.format_exc())
             return jsonify({"error": str(e)}), 500
+        except Exception as e:
+            # Track failed API call
+            if ai_api_calls and provider:
+                ai_api_calls.labels(provider=provider, status='error').inc()
+            if mermaid_generation_requests:
+                mermaid_generation_requests.labels(status='error_generation').inc()
+
+            logger.error(f"Error generating Mermaid code: {str(e)}")
+            logger.error(traceback.format_exc())
+            return jsonify({"error": "An error occurred while generating the diagram. Please check your API key and try again."}), 500
     except Exception as e:
         if mermaid_generation_requests:
             mermaid_generation_requests.labels(status='error_unexpected').inc()
 
         logger.error(f"Unexpected error in generate_mermaid: {str(e)}")
         logger.error(traceback.format_exc())
-        return jsonify({"error": f"Unexpected error: {str(e)}"}), 500
+        return jsonify({"error": "An unexpected error occurred. Please try again."}), 500
 
 def generate_with_openai(user_input, api_key):
     client = openai.OpenAI(api_key=api_key or session.get('openai_token'))
@@ -747,10 +761,10 @@ def google_callback():
             session['authenticated_providers'] = ['anthropic-google']
         
         # Redirect to frontend with success
-        return redirect('http://localhost:3000/auth-success')
+        return redirect(url_for('index') + '?auth=success')
     except Exception as e:
         logger.error(f"Google callback error: {str(e)}")
-        return redirect('http://localhost:3000/auth-error')
+        return redirect(url_for('index') + '?auth=error')
 
 @app.route('/api/auth/status')
 def auth_status():

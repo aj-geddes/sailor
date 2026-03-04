@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Sailor Site - Get a picture of your Mermaid</title>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>⛵</text></svg>">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.2/codemirror.min.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.2/theme/monokai.min.css">
     <link rel="stylesheet" href="/static/styles.css">
@@ -19,12 +20,12 @@
                 <p class="slogan">Get a picture of your Mermaid</p>
             </div>
             <div class="auth-controls">
-                <select id="provider" class="provider-select">
+                <select id="provider" class="provider-select" aria-label="AI Provider">
                     <option value="openai">OpenAI</option>
                     <option value="anthropic">Anthropic</option>
                 </select>
                 
-                <input type="password" id="apiKey" placeholder="API Key" class="api-key-input">
+                <input type="password" id="apiKey" placeholder="API Key" class="api-key-input" aria-label="API Key">
                 <span id="keyStatus" class="key-status"></span>
             </div>
         </header>
@@ -64,7 +65,7 @@
                 <h3>Style Controls</h3>
                 
                 <div class="control-group">
-                    <label>Theme</label>
+                    <label for="theme">Theme</label>
                     <select id="theme" class="control-select">
                         <option value="default">Default</option>
                         <option value="dark">Dark</option>
@@ -74,7 +75,7 @@
                 </div>
 
                 <div class="control-group">
-                    <label>Direction</label>
+                    <label for="direction">Direction</label>
                     <select id="direction" class="control-select">
                         <option value="TB">Top to Bottom</option>
                         <option value="BT">Bottom to Top</option>
@@ -84,7 +85,7 @@
                 </div>
 
                 <div class="control-group">
-                    <label>Look</label>
+                    <label for="look">Look</label>
                     <select id="look" class="control-select">
                         <option value="classic">Classic</option>
                         <option value="handDrawn">Hand-Drawn</option>
@@ -93,7 +94,7 @@
                 </div>
 
                 <div class="control-group">
-                    <label>Export Background</label>
+                    <label for="exportBg">Export Background</label>
                     <select id="exportBg" class="control-select">
                         <option value="transparent">Transparent</option>
                         <option value="white">White</option>
@@ -113,7 +114,7 @@
         <div class="input-panel">
             <div class="panel-header">Generate Diagram</div>
             <div class="input-controls">
-                <textarea id="userInput" placeholder="Describe the diagram you want to create... (e.g., 'Create a flowchart showing user login process')" rows="3"></textarea>
+                <textarea id="userInput" placeholder="Describe the diagram you want to create... (e.g., 'Create a flowchart showing user login process')" rows="3" aria-label="Diagram description"></textarea>
                 <button id="generateBtn" class="generate-button">Generate Diagram</button>
             </div>
         </div>

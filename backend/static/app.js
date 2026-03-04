@@ -1,6 +1,6 @@
 // Initialize variables
 let editor;
-let currentTheme = 'dark';
+let currentTheme = 'default';
 let currentDirection = 'TB';
 let currentLook = 'classic';
 
@@ -44,21 +44,26 @@ document.addEventListener('DOMContentLoaded', function() {
     document.getElementById('copyImageBtn').addEventListener('click', copyImage);
 
     // Initial render
+    updatePreviewBackground();
     renderMermaid();
 });
+
+// Clean up orphaned Mermaid error/render elements outside the preview container
+function cleanupOrphanedMermaidElements() {
+    const preview = document.getElementById('mermaidPreview');
+    document.querySelectorAll('div[id^="d"], div[id^="mermaid-"]').forEach(el => {
+        if (preview && preview.contains(el)) return;
+        el.remove();
+    });
+}
 
 // Render Mermaid diagram
 async function renderMermaid() {
     const container = document.getElementById('mermaidPreview');
     let code = editor.getValue();
 
-    // Apply direction
-    if (currentDirection !== 'TB') {
-        code = code.replace(/graph\s+\w+/, `graph ${currentDirection}`);
-        if (!code.includes(`graph ${currentDirection}`)) {
-            code = code.replace(/graph/, `graph ${currentDirection}`);
-        }
-    }
+    // Clean up orphaned Mermaid error elements from document.body
+    cleanupOrphanedMermaidElements();
 
     // Clear previous content
     container.innerHTML = '';
@@ -82,19 +87,32 @@ async function renderMermaid() {
         container.innerHTML = svg;
     } catch (error) {
         container.innerHTML = `<div style="color: #f44336; padding: 20px;">Error: ${error.message}</div>`;
+        // Clean up any error elements Mermaid may have appended to body
+        cleanupOrphanedMermaidElements();
     }
+}
+
+// Update preview background based on theme
+function updatePreviewBackground() {
+    const preview = document.getElementById('mermaidPreview');
+    preview.classList.remove('theme-default', 'theme-neutral', 'theme-forest', 'theme-dark');
+    preview.classList.add(`theme-${currentTheme}`);
 }
 
 // Handle theme change
 function handleThemeChange(e) {
     currentTheme = e.target.value;
+    updatePreviewBackground();
     renderMermaid();
 }
 
 // Handle direction change
 function handleDirectionChange(e) {
     currentDirection = e.target.value;
-    renderMermaid();
+    // Update the editor content to reflect the new direction
+    let code = editor.getValue();
+    code = code.replace(/graph\s+\w+/, `graph ${currentDirection}`);
+    editor.setValue(code);
 }
 
 // Handle look change
@@ -269,7 +287,32 @@ async function copyCode() {
             buttonText.textContent = 'Copy';
         }, 2000);
     } catch (err) {
-        showToast('Failed to copy code', 'error');
+        // Fallback: textarea select + execCommand
+        try {
+            const textarea = document.createElement('textarea');
+            textarea.value = code;
+            textarea.style.position = 'fixed';
+            textarea.style.opacity = '0';
+            document.body.appendChild(textarea);
+            textarea.select();
+            document.execCommand('copy');
+            document.body.removeChild(textarea);
+            button.classList.add('copied');
+            buttonText.textContent = 'Copied!';
+            setTimeout(() => {
+                button.classList.remove('copied');
+                buttonText.textContent = 'Copy';
+            }, 2000);
+        } catch (fallbackErr) {
+            // Last resort: download as file
+            const blob = new Blob([code], { type: 'text/plain' });
+            const link = document.createElement('a');
+            link.download = 'mermaid-code.txt';
+            link.href = URL.createObjectURL(blob);
+            link.click();
+            URL.revokeObjectURL(link.href);
+            showToast('Downloaded code as file (copy not supported)', 'info');
+        }
     }
 }
 

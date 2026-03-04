@@ -465,15 +465,14 @@ async def get_diagram(
     return create_annotated_image(data, file_format)
 
 
-# Tool: Health Check
-@mcp.tool(description="Check server health and get status information")
-async def health_check() -> Dict[str, Any]:
-    """Health check endpoint for load balancers and monitoring"""
+# Shared health check logic (not decorated, callable by both tools)
+async def _get_health_status() -> Dict[str, Any]:
+    """Core health check logic shared by health_check and server_status tools"""
     global renderer
 
     uptime = time.time() - metrics["start_time"]
 
-    health_status = {
+    return {
         "status": "healthy",
         "version": "2.0.0",
         "uptime_seconds": round(uptime, 2),
@@ -492,14 +491,19 @@ async def health_check() -> Dict[str, Any]:
         }
     }
 
-    return health_status
+
+# Tool: Health Check
+@mcp.tool(description="Check server health and get status information")
+async def health_check() -> Dict[str, Any]:
+    """Health check endpoint for load balancers and monitoring"""
+    return await _get_health_status()
 
 
 # Tool: Server Status (alias for external monitoring)
 @mcp.tool(description="Get detailed server status and metrics")
 async def server_status() -> Dict[str, Any]:
     """Detailed server status for monitoring dashboards"""
-    return await health_check()
+    return await _get_health_status()
 
 
 # Tool: Request Mermaid Generation

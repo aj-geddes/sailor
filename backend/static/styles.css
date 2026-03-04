@@ -328,3 +328,120 @@ body {
     font-family: 'Monaco', 'Consolas', monospace;
     font-size: 14px;
 }
+
+/* Theme-aware preview backgrounds */
+.mermaid-container.theme-default,
+.mermaid-container.theme-neutral,
+.mermaid-container.theme-forest {
+    background-color: #f5f5f5;
+}
+
+.mermaid-container.theme-dark {
+    background-color: #252526;
+}
+
+/* Tablet breakpoint */
+@media (max-width: 1024px) {
+    .main-content {
+        flex-wrap: wrap;
+    }
+
+    .editor-panel,
+    .preview-panel {
+        flex: 1 1 50%;
+        min-width: 0;
+    }
+
+    .controls-panel {
+        flex: 1 1 100%;
+        display: flex;
+        flex-wrap: wrap;
+        gap: 1rem;
+        align-items: flex-start;
+    }
+
+    .controls-panel h3 {
+        width: 100%;
+    }
+
+    .control-group {
+        flex: 1;
+        min-width: 120px;
+        margin-bottom: 0.5rem;
+    }
+
+    .examples-section {
+        width: 100%;
+        margin-top: 0.5rem;
+    }
+}
+
+/* Mobile breakpoint */
+@media (max-width: 768px) {
+    body {
+        overflow: auto;
+    }
+
+    .app {
+        height: auto;
+        min-height: 100vh;
+    }
+
+    .header {
+        flex-direction: column;
+        gap: 0.75rem;
+        padding: 0.75rem 1rem;
+    }
+
+    .header-content {
+        flex-direction: column;
+        align-items: center;
+        gap: 0.25rem;
+    }
+
+    .auth-controls {
+        width: 100%;
+        flex-wrap: wrap;
+        justify-content: center;
+    }
+
+    .api-key-input {
+        width: 100%;
+    }
+
+    .main-content {
+        flex-direction: column;
+        overflow: visible;
+    }
+
+    .editor-panel,
+    .preview-panel {
+        flex: none;
+        min-height: 250px;
+        border-right: none;
+        border-bottom: 1px solid #3e3e42;
+    }
+
+    .controls-panel {
+        flex: none;
+    }
+
+    .input-controls {
+        flex-direction: column;
+    }
+
+    .generate-button {
+        width: 100%;
+    }
+}
+
+/* Small mobile breakpoint */
+@media (max-width: 480px) {
+    .header h1 {
+        font-size: 1.2rem;
+    }
+
+    .slogan {
+        font-size: 0.85rem;
+    }
+}
