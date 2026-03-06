@@ -1,7 +1,7 @@
 ---
 layout: default
-title: "Admin Guide"
-description: "Configuration, security, and management for Sailor administrators"
+title: "Sailor Admin Guide - Configuration, Security, and API Keys"
+description: "Configure Sailor for production: environment variables, API key management, CORS, rate limiting, security headers, and multi-user deployment."
 ---
 
 # Admin Guide 👨‍💼

@@ -1,7 +1,10 @@
 ---
 layout: default
-title: "Sailor Documentation"
-description: "Get a picture of your Mermaid! 🎨"
+title: "Sailor - Mermaid Diagram Generator with AI and MCP"
+description: "Generate Mermaid diagrams with AI, render live, and integrate with Claude Desktop via MCP. Supports flowcharts, sequence diagrams, and Gantt charts."
+image:
+  path: /sailor/screenshots/02-flowchart-example.png
+  alt: Sailor web editor rendering a Mermaid flowchart with live preview
 ---
 
 # Welcome Aboard! 🧜‍♀️

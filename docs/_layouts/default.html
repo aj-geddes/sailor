@@ -4,13 +4,44 @@
     <meta charset="UTF-8">
 
 {% seo %}
-    <link rel="preconnect" href="https://fonts.gstatic.com">
+    <link rel="canonical" href="{{ page.url | absolute_url }}">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link rel="preload" href="https://fonts.googleapis.com/css?family=Open+Sans:400,700&display=swap" as="style" type="text/css" crossorigin>
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="theme-color" content="#0066cc">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="robots" content="index, follow">
     <link rel="stylesheet" href="{{ '/assets/css/style.css?v=' | append: site.github.build_revision | relative_url }}">
     {% include head-custom.html %}
+
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "WebPage",
+      "name": "{{ page.title | default: site.title }}",
+      "description": "{{ page.description | default: site.description | strip_html | truncate: 160 }}",
+      "url": "{{ page.url | absolute_url }}",
+      "isPartOf": {
+        "@type": "WebSite",
+        "name": "{{ site.title }}",
+        "url": "{{ site.url }}{{ site.baseurl }}/",
+        "description": "{{ site.description }}"
+      },
+      "about": {
+        "@type": "SoftwareApplication",
+        "name": "Sailor",
+        "applicationCategory": "DeveloperApplication",
+        "operatingSystem": "Linux, macOS, Windows (Docker)",
+        "description": "{{ site.description }}",
+        "url": "{{ site.github.repository_url }}",
+        "offers": {
+          "@type": "Offer",
+          "price": "0",
+          "priceCurrency": "USD"
+        }
+      }
+    }
+    </script>
   </head>
   <body>
     <header class="page-header" role="banner">
@@ -25,11 +56,11 @@
       {% endif %}
     </header>
 
-    <nav class="site-nav">
+    <nav class="site-nav" aria-label="Main navigation">
       <ul>
         {% for link in site.nav_links %}
         <li>
-          <a href="{{ link.url | relative_url }}" {% if page.url == link.url %}class="active"{% endif %}>
+          <a href="{{ link.url | relative_url }}" {% if page.url == link.url %}class="active" aria-current="page"{% endif %}>
             {{ link.title }}
           </a>
         </li>
@@ -41,7 +72,7 @@
       {{ content }}
 
       <footer class="site-footer">
-        <p>🧜‍♀️ Made with ❤️ for the Sailor community | <a href="{{ site.github.repository_url }}">View on GitHub</a></p>
+        <p>Made with care for the Sailor community | <a href="{{ site.github.repository_url }}">View on GitHub</a></p>
         {% if site.github.is_project_page %}
           <span class="site-footer-owner"><a href="{{ site.github.repository_url }}">{{ site.github.repository_name }}</a> is maintained by <a href="{{ site.github.owner_url }}">{{ site.github.owner_name }}</a>.</span>
         {% endif %}

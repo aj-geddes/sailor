@@ -1,7 +1,7 @@
 ---
 layout: default
-title: "Setup Guide"
-description: "Complete installation and setup instructions for Sailor"
+title: "Sailor Setup Guide - Install with Docker, pip, or Claude Desktop"
+description: "Step-by-step installation for Sailor: Docker setup, pip install, Claude Desktop MCP integration, Playwright browser install, and first diagram generation."
 ---
 
 # Setup Guide 🚀

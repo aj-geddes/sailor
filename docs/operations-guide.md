@@ -1,7 +1,7 @@
 ---
 layout: default
-title: "Operations Guide"
-description: "Production deployment, monitoring, and maintenance procedures for Sailor"
+title: "Sailor Operations Guide - Deployment, Monitoring, and Docker"
+description: "Deploy Sailor to production with Docker Compose, health checks, Prometheus metrics, backup procedures, Railway hosting, and performance tuning."
 ---
 
 # Operations Guide ⚙️

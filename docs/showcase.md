@@ -1,7 +1,10 @@
 ---
 layout: default
-title: "Showcase"
-description: "See Sailor in action - screenshots of every capability"
+title: "Sailor Showcase - Screenshots of Every Feature"
+description: "See Sailor in action: flowcharts, sequence diagrams, Gantt charts, four themes, hand-drawn mode, direction control, AI generation, and responsive mobile layout."
+image:
+  path: /sailor/screenshots/07-hand-drawn-look.png
+  alt: Sailor editor showing a hand-drawn flowchart with Forest theme
 ---
 
 # Sailor Showcase

@@ -1,10 +1,26 @@
 # Sailor Documentation Site Configuration
 
 # Site settings
-title: "Sailor Documentation"
-description: "Get a picture of your Mermaid! Comprehensive guide for the Sailor diagram generator."
+title: "Sailor - Mermaid Diagram Generator"
+description: "Generate, render, and export Mermaid diagrams with AI. Web editor with live preview, theme switching, and MCP server integration for Claude Desktop."
 baseurl: "/sailor"
 url: "https://aj-geddes.github.io"
+lang: "en-US"
+author:
+  name: "aj-geddes"
+  url: "https://github.com/aj-geddes"
+logo: "/sailor/screenshots/01-default-view.png"
+image:
+  path: "/sailor/screenshots/01-default-view.png"
+  width: 1440
+  height: 900
+  alt: "Sailor Mermaid diagram editor showing a flowchart with live preview"
+
+# Social / Open Graph
+social:
+  name: "Sailor"
+  links:
+    - "https://github.com/aj-geddes/sailor"
 
 # Theme configuration
 theme: jekyll-theme-cayman
@@ -48,6 +64,19 @@ kramdown:
 mermaid:
   enabled: true
   version: "10.6.1"
+
+# Default front matter
+defaults:
+  - scope:
+      path: ""
+      type: "pages"
+    values:
+      layout: "default"
+      image:
+        path: "/sailor/screenshots/01-default-view.png"
+        width: 1440
+        height: 900
+        alt: "Sailor Mermaid diagram editor"
 
 # Exclude from build
 exclude:

@@ -1,7 +1,7 @@
 ---
 layout: default
-title: "Troubleshooting Guide"
-description: "Common issues and solutions for Sailor"
+title: "Sailor Troubleshooting - Fix Rendering, Docker, and API Errors"
+description: "Solve common Sailor issues: Mermaid rendering failures, Docker container errors, API connectivity problems, Playwright browser issues, and performance debugging."
 ---
 
 # Troubleshooting Guide 🔧
