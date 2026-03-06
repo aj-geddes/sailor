@@ -109,6 +109,7 @@ Topics covered:
 
 | Resource | Description |
 |----------|-------------|
+| [Showcase](showcase) | Screenshots of every Sailor capability |
 | [GitHub Repository](https://github.com/aj-geddes/sailor) | Source code and issue tracking |
 | [Main README](https://github.com/aj-geddes/sailor/blob/main/README.md) | Project overview and quick start |
 | [Docker Guide](DOCKER.html) | Docker-specific documentation |

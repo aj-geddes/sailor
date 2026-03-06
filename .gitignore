@@ -54,6 +54,7 @@ output/
 # But keep documentation images
 !docs/images/*.png
 !docs/images/*.svg
+!docs/screenshots/*.png
 
 # Environment variables
 .env

@@ -18,6 +18,8 @@ plugins:
 nav_links:
   - title: Home
     url: /
+  - title: Showcase
+    url: /showcase
   - title: Setup Guide
     url: /setup-guide
   - title: Admin Guide
